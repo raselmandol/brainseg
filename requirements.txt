@@ -1,0 +1,7 @@
+torch
+torchvision
+segmentation-models-pytorch
+gradio
+opencv-python
+numpy
+scipy
