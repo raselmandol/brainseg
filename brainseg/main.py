@@ -1,5 +1,5 @@
 import sys
-from brainaseg.main_window import main
+from brainseg.main_window import main
 
 if __name__ == "__main__":
     main()

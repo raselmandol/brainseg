@@ -1,10 +1,10 @@
-# brainaseg
+# brainseg
 
 Brain abnormality segmentation application (PyQt6).
 
 ## Structure
 
-- `brainaseg/`
+- `brainseg/`
   - `__init__.py` — Package init
   - `canvas.py` — Graphics canvas and UI components
   - `image_utils.py` — Image utility functions
@@ -23,5 +23,9 @@ pip install .
 ```
 Run with:
 ```
-brainaseg
+brainseg
+```
+or 
+```
+python brainseg
 ```
