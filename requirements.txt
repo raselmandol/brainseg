@@ -3,5 +3,5 @@ torchvision
 segmentation-models-pytorch
 gradio
 opencv-python
-numpy
+numpy<2
 scipy

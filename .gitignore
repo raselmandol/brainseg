@@ -4,6 +4,7 @@ __pycache__/
 *.pyd
 
 brainseg_env/
+brain/
 .env/
 .venv/
 
