@@ -3,11 +3,12 @@ __pycache__/
 *.pyo
 *.pyd
 
-brainseg/
+brainseg_env/
 .env/
 .venv/
 
 brainaseg.egg-info/
+brainseg.egg-info/
 dist/
 build/
 pip-wheel-metadata/
