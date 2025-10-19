@@ -1,4 +1,4 @@
-from brainaseg.main import main
+from brainseg.main import main
 
 if __name__ == "__main__":
     main()
