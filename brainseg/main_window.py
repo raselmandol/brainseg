@@ -128,7 +128,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		menubar = self.menuBar()
 		file_menu = menubar.addMenu("&File")
 		act_open = QtGui.QAction("Open Image...", self)
-		act_open.setShortcut("Ctrl+O")
+		act_open.setShortcut("Ctrl+Alt+O")
 		act_open.triggered.connect(self.action_open_image)
 		act_run = QtGui.QAction("Run Segmentation", self)
 		act_run.setShortcut("Ctrl+R")
@@ -175,7 +175,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			a.triggered.connect(slot)
 			tb.addAction(a)
 			return a
-		action("Open", self.action_open_image, "Ctrl+O", "Open image")
+		action("Open", self.action_open_image, "Ctrl+Alt+O", "Open image")
 		action("Run", self.action_run_segmentation, "Ctrl+R", "Run segmentation")
 		tb.addSeparator()
 		action("Fit", self.fit_all, "F", "Fit all views")
@@ -282,7 +282,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 	def _show_shortcuts(self):
 		msg = (
 			"<b>Shortcuts</b><br>"
-			"Ctrl+O — Open Image<br>"
+			"Ctrl+Alt+O — Open Image<br>"
 			"Ctrl+R — Run Segmentation<br>"
 			"Ctrl+S — Save Mask<br>"
 			"F — Fit to Window (all)<br>"
