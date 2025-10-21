@@ -18,7 +18,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "brainaseg=brainaseg.main:main"
+            "brainseg=brainseg.main:main"
         ]
     },
 )
