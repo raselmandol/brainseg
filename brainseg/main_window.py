@@ -283,8 +283,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		msg = (
 			"<b>Shortcuts</b><br>"
 			"Ctrl+Alt+O — Open Image<br>"
-			"Ctrl+R — Run Segmentation<br>"
-			"Ctrl+S — Save Mask<br>"
+			"Ctrl+Alt+R — Run Segmentation<br>"
+			"Ctrl+Alt+S — Save Mask<br>"
 			"F — Fit to Window (all)<br>"
 			"1 — Zoom 1:1 (all)<br>"
 			"Mouse Wheel — Zoom<br>"
