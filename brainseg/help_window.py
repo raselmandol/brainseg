@@ -45,19 +45,19 @@ class HelpWindow(QtWidgets.QDialog):
                 <th align="left" style="padding: 8px;"><b>Action</b></th>
             </tr>
             <tr>
-                <td style="padding: 8px;"><code>Ctrl+O</code></td>
+                <td style="padding: 8px;"><code>Ctrl+Alt+O</code></td>
                 <td style="padding: 8px;">Open Image</td>
             </tr>
             <tr style="background-color: #f9f9f9;">
-                <td style="padding: 8px;"><code>Ctrl+R</code></td>
+                <td style="padding: 8px;"><code>Ctrl+Alt+R</code></td>
                 <td style="padding: 8px;">Run Segmentation</td>
             </tr>
             <tr>
-                <td style="padding: 8px;"><code>Ctrl+S</code></td>
+                <td style="padding: 8px;"><code>Ctrl+Alt+S</code></td>
                 <td style="padding: 8px;">Save Mask</td>
             </tr>
             <tr style="background-color: #f9f9f9;">
-                <td style="padding: 8px;"><code>Ctrl+Q</code></td>
+                <td style="padding: 8px;"><code>Ctrl+Alt+Q</code></td>
                 <td style="padding: 8px;">Exit Application</td>
             </tr>
             <tr>
