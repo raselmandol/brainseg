@@ -6,7 +6,9 @@ import numpy as np
 from .canvas import ImageCanvas
 from .image_utils import pil_or_cv_to_rgb_np
 from .model import get_model, run_inference_on_image, MODEL_PATH
+
 from .worker import InferenceWorker
+from .help_window import HelpWindow
 
 class SegmentationApp(QtWidgets.QMainWindow):
 	def __init__(self):
@@ -280,17 +282,11 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.canvas_mask.zoom_1x()
 		self.canvas_high.zoom_1x()
 	def _show_shortcuts(self):
-		msg = (
-			"<b>Shortcuts</b><br>"
-			"Ctrl+Alt+O — Open Image<br>"
-			"Ctrl+Alt+R — Run Segmentation<br>"
-			"Ctrl+Alt+S — Save Mask<br>"
-			"F — Fit to Window (all)<br>"
-			"1 — Zoom 1:1 (all)<br>"
-			"Mouse Wheel — Zoom<br>"
-			"Space (hold) — Pan"
-		)
-		QtWidgets.QMessageBox.information(self, "Shortcuts", msg)
+		if not hasattr(self, '_help_window'):
+			self._help_window = HelpWindow(self)
+		self._help_window.show()
+		self._help_window.raise_()
+		self._help_window.activateWindow()
 
 def main():
 	app = QtWidgets.QApplication(sys.argv)
