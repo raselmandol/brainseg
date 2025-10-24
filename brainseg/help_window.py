@@ -65,7 +65,7 @@ class HelpWindow(QtWidgets.QDialog):
                 <td style="padding: 8px;">Fit all views to window</td>
             </tr>
             <tr style="background-color: #f9f9f9;">
-                <td style="padding: 8px;"><code>1</code></td>
+                <td style="padding: 8px;"><code>Ctrl+Alt+1</code></td>
                 <td style="padding: 8px;">Reset zoom to 1:1 (all views)</td>
             </tr>
             <tr>
@@ -100,11 +100,11 @@ class HelpWindow(QtWidgets.QDialog):
         <p>The default model is <code>brain_segmentation_model.pth</code> in the application directory.</p>
         
         <h3 style="color: #34495e;">Step 2: Load an Image</h3>
-        <p>Click <b>"Open Image"</b> or press <code>Ctrl+O</code> to select a brain MRI image.</p>
+        <p>Click <b>"Open Image"</b> or press <code>Ctrl+Alt+O</code> to select a brain MRI image.</p>
         <p>Supported formats: PNG, JPG, JPEG, TIF, TIFF, BMP</p>
         
         <h3 style="color: #34495e;">Step 3: Run Segmentation</h3>
-        <p>Click <b>"Run Segmentation"</b> or press <code>Ctrl+R</code> to process the image.</p>
+        <p>Click <b>"Run Segmentation"</b> or press <code>Ctrl+Alt+R</code> to process the image.</p>
         <p>The application will display:</p>
         <ul>
             <li><b>Original Image</b> - Your input image</li>
@@ -113,7 +113,7 @@ class HelpWindow(QtWidgets.QDialog):
         </ul>
         
         <h3 style="color: #34495e;">Step 4: Save Results</h3>
-        <p>Use <b>"Save Mask"</b> (Ctrl+S) or <b>"Save Highlight"</b> to save the processed images.</p>
+        <p>Use <b>"Save Mask"</b> (Ctrl+Alt+S) or <b>"Save Highlight"</b> to save the processed images.</p>
         <p>Output files are automatically named: <code>originalname_mask.png</code> and <code>originalname_highlight.png</code></p>
         
         <h3 style="color: #34495e;">Navigation Tips</h3>
@@ -153,7 +153,7 @@ class HelpWindow(QtWidgets.QDialog):
         
         <h3 style="color: #34495e;">About</h3>
         <p>BrainSeg is a specialized tool for detecting and segmenting abnormalities in brain MRI images using deep learning.</p>
-        <p>The application uses a U-Net architecture with EfficientNet-B7 encoder for accurate segmentation of brain tumors and other abnormalities.</p>
+        <p>The application uses a default (pretrained) U-Net architecture with EfficientNet-B7 encoder for accurate segmentation of brain tumors and other abnormalities.</p>
         
         <h3 style="color: #34495e;">Features</h3>
         <ul>
@@ -178,10 +178,10 @@ class HelpWindow(QtWidgets.QDialog):
         National Institute of Technology Meghalaya</p>
         
         <h3 style="color: #34495e;">License</h3>
-        <p>This software is provided for research and educational purposes.</p>
+        <p>[MIT] This software is provided for research and educational purposes.</p>
         
         <p style="margin-top: 30px; text-align: center; color: #95a5a6; font-size: 12px;">
-        © 2025 BrainSeg. All rights reserved.
+        © 2025 SSC LAB | BrainSeg. All rights reserved.
         </p>
         """
         
