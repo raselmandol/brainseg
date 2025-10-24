@@ -61,7 +61,7 @@ class HelpWindow(QtWidgets.QDialog):
                 <td style="padding: 8px;">Exit Application</td>
             </tr>
             <tr>
-                <td style="padding: 8px;"><code>F</code></td>
+                <td style="padding: 8px;"><code>Ctrl+Alt+F</code></td>
                 <td style="padding: 8px;">Fit all views to window</td>
             </tr>
             <tr style="background-color: #f9f9f9;">
