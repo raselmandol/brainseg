@@ -34,6 +34,15 @@ QStatusBar {
     background: #ffffff;
     border-top: 1px solid #e6e6e6;
 }
+/* View titles */
+QLabel#viewTitle {
+    color: #1a1a1a;
+}
+/* Help window content defaults */
+QDialog QLabel, QDialog QScrollArea QLabel {
+    color: #2c3e50;
+}
+QDialog a { color: #1a73e8; }
 """
 
 DARK_THEME = """
@@ -72,6 +81,15 @@ QStatusBar {
     background: #23272e;
     border-top: 1px solid #444a57;
 }
+/* View titles */
+QLabel#viewTitle {
+    color: #ffffff;
+}
+/* Help window content defaults in dark */
+QDialog QLabel, QDialog QScrollArea QLabel {
+    color: #e0e0e0;
+}
+QDialog a { color: #8ab4f8; }
 """
 
 def get_icon_path(theme: str, assets_dir: str, style: int = 1):
