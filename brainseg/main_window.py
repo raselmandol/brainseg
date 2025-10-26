@@ -9,47 +9,17 @@ from .model import get_model, run_inference_on_image, MODEL_PATH
 
 from .worker import InferenceWorker
 from .help_window import HelpWindow
+from .theme import LIGHT_THEME, DARK_THEME, get_icon_path
 
 class SegmentationApp(QtWidgets.QMainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setWindowTitle("Brain Abnormality Segmentation")
 		self.resize(1100, 550)
-		self.setStyleSheet("""
-			QMainWindow, QWidget {
-				background: #ffffff;
-				color: #2c3e50;
-				font-family: 'Segoe UI', Helvetica, Arial;
-				font-size: 14px;
-			}
-			QDockWidget {
-				background: #f7f7f7;
-				titlebar-close-icon: url(none);
-				titlebar-normal-icon: url(none);
-			}
-			QDockWidget::title {
-				background: #f0f0f0;
-				padding: 6px;
-				font-weight: 600;
-			}
-			QPushButton {
-				background-color: #fafafa;
-				border: 1px solid #dcdcdc;
-				border-radius: 8px;
-				padding: 8px 12px;
-			}
-			QPushButton:hover { background-color: #e8f0fe; border-color: #b9d0ff; }
-			QLabel#hint { color: #666; font-size: 12px; }
-			QToolBar {
-				background: #ffffff;
-				border-bottom: 1px solid #e6e6e6;
-				spacing: 6px;
-			}
-			QStatusBar {
-				background: #ffffff;
-				border-top: 1px solid #e6e6e6;
-			}
-		""")
+		self.theme = "light"
+		self.theme_style = 1  # 1 or 2, for icon style
+		self.assets_dir = "assets"
+		self.setStyleSheet(LIGHT_THEME)
 		self.current_image = None
 		self.current_mask = None
 		self.current_highlight = None
@@ -72,6 +42,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._build_menubar()
 		self._build_toolbar()
 		self._build_footer()
+
+	def _get_theme_icon(self):
+		icon_path = get_icon_path(self.theme, self.assets_dir, self.theme_style)
+		return QtGui.QIcon(icon_path)
 	def _build_left_dock(self):
 		dock = QtWidgets.QDockWidget("Controls", self)
 		dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea | QtCore.Qt.DockWidgetArea.RightDockWidgetArea)
@@ -177,7 +151,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			a.triggered.connect(slot)
 			tb.addAction(a)
 			return a
-		action("Open", self.action_open_image, "Ctrl+Alt+O", "Open image")
+		action("Open", self.action_open_image, "Ctrl+O", "Open image")
 		action("Run", self.action_run_segmentation, "Ctrl+R", "Run segmentation")
 		tb.addSeparator()
 		action("Fit", self.fit_all, "F", "Fit all views")
@@ -185,6 +159,28 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		tb.addSeparator()
 		action("Save Mask", self.action_save_mask, "Ctrl+S", "Save mask image")
 		action("Save Highlight", self.action_save_highlight, None, "Save highlighted image")
+		tb.addSeparator()
+		# Help button
+		help_action = QtGui.QAction(QtGui.QIcon(), "Help", self)
+		help_action.setToolTip("Show help window")
+		help_action.triggered.connect(self._show_shortcuts)
+		tb.addAction(help_action)
+		# Theme switcher button
+		self.theme_action = QtGui.QAction(self._get_theme_icon(), "Switch Theme", self)
+		self.theme_action.setToolTip("Switch between day/night mode")
+		self.theme_action.triggered.connect(self._toggle_theme)
+		tb.addAction(self.theme_action)
+
+	def _toggle_theme(self):
+		if self.theme == "light":
+			self.theme = "dark"
+			self.setStyleSheet(DARK_THEME)
+		else:
+			self.theme = "light"
+			self.setStyleSheet(LIGHT_THEME)
+		# Toggle icon style for fun (1/2)
+		self.theme_style = 2 if self.theme_style == 1 else 1
+		self.theme_action.setIcon(self._get_theme_icon())
 	def _build_footer(self):
 		self.statusBar().setSizeGripEnabled(False)
 		container = QtWidgets.QWidget()
