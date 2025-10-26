@@ -23,7 +23,9 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		self._zoom = 0
 		self.title_label = QtWidgets.QLabel(self._title)
 		self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-		self.title_label.setStyleSheet("font-weight: 600; font-size: 15px; color: #1a1a1a;")
+		# Color will be set via QSS using objectName
+		self.title_label.setObjectName("viewTitle")
+		self.title_label.setStyleSheet("font-weight: 600; font-size: 15px;")
 		self.wrapper = QtWidgets.QWidget()
 		v = QtWidgets.QVBoxLayout(self.wrapper)
 		v.setContentsMargins(0, 0, 0, 0)

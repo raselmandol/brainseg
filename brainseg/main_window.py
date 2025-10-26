@@ -18,7 +18,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.resize(1100, 550)
 		self.theme = "light"
 		self.theme_style = 1  # 1 or 2, for icon style
-		self.assets_dir = "assets"
+		# Get the directory where this file is located
+		import os
+		module_dir = os.path.dirname(os.path.abspath(__file__))
+		self.assets_dir = os.path.join(module_dir, "assets")
 		self.setStyleSheet(LIGHT_THEME)
 		self.current_image = None
 		self.current_mask = None
@@ -44,7 +47,14 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._build_footer()
 
 	def _get_theme_icon(self):
-		icon_path = get_icon_path(self.theme, self.assets_dir, self.theme_style)
+		# Always use night-mode1.png for light, white-mode1.png for dark
+		if self.theme == "light":
+			icon_file = "night_mode1.png"
+		else:
+			icon_file = "white_mode1.png"
+		icon_path = os.path.join(self.assets_dir, icon_file)
+		if not os.path.exists(icon_path):
+			print(f"Warning: Icon not found at {icon_path}")
 		return QtGui.QIcon(icon_path)
 	def _build_left_dock(self):
 		dock = QtWidgets.QDockWidget("Controls", self)
@@ -139,7 +149,9 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		help_menu.addAction(act_help)
 	def _build_toolbar(self):
 		tb = QtWidgets.QToolBar("Main")
-		tb.setIconSize(QtCore.QSize(18, 18))
+		tb.setIconSize(QtCore.QSize(24, 24))
+		# Icon beside text for toolbar buttons
+		tb.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
 		self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, tb)
 		def action(text, slot, shortcut=None, tip=None, icon=None):
 			a = QtGui.QAction(icon or QtGui.QIcon(), text, self)
@@ -159,18 +171,14 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		tb.addSeparator()
 		action("Save Mask", self.action_save_mask, "Ctrl+S", "Save mask image")
 		action("Save Highlight", self.action_save_highlight, None, "Save highlighted image")
-		tb.addSeparator()
-		# Help button
-		help_action = QtGui.QAction(QtGui.QIcon(), "Help", self)
-		help_action.setToolTip("Show help window")
-		help_action.triggered.connect(self._show_shortcuts)
-		tb.addAction(help_action)
-		# Theme switcher button
-		self.theme_action = QtGui.QAction(self._get_theme_icon(), "Switch Theme", self)
+
+		# Theme switcher button to the toolbar (with icon and text)
+		theme_icon = self._get_theme_icon()
+		self.theme_action = QtGui.QAction(theme_icon, "Switch Theme", self)
 		self.theme_action.setToolTip("Switch between day/night mode")
 		self.theme_action.triggered.connect(self._toggle_theme)
+		tb.addSeparator()
 		tb.addAction(self.theme_action)
-
 	def _toggle_theme(self):
 		if self.theme == "light":
 			self.theme = "dark"
@@ -178,9 +186,9 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		else:
 			self.theme = "light"
 			self.setStyleSheet(LIGHT_THEME)
-		# Toggle icon style for fun (1/2)
-		self.theme_style = 2 if self.theme_style == 1 else 1
-		self.theme_action.setIcon(self._get_theme_icon())
+		# Always updating the icon to match the theme (reverse --> white/night)
+		if hasattr(self, 'theme_action'):
+			self.theme_action.setIcon(self._get_theme_icon())
 	def _build_footer(self):
 		self.statusBar().setSizeGripEnabled(False)
 		container = QtWidgets.QWidget()
