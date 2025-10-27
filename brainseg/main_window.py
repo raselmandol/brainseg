@@ -18,8 +18,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.resize(1100, 550)
 		self.theme = "light"
 		self.theme_style = 1  # 1 or 2, for icon style
-		# Get the directory where this file is located
-		import os
+		# Get the directory where this file is located (filename_1.png, _2.png/reverse mode (day/night) icons are stored there)
 		module_dir = os.path.dirname(os.path.abspath(__file__))
 		self.assets_dir = os.path.join(module_dir, "assets")
 		self.setStyleSheet(LIGHT_THEME)
