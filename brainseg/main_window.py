@@ -168,13 +168,13 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			a.triggered.connect(slot)
 			tb.addAction(a)
 			return a
-		action("Open", self.action_open_image, "Ctrl+O", "Open image")
-		action("Run", self.action_run_segmentation, "Ctrl+R", "Run segmentation")
+		action("Open", self.action_open_image, "Ctrl+Alt+O", "Open image")
+		action("Run", self.action_run_segmentation, "Ctrl+Alt+R", "Run segmentation")
 		tb.addSeparator()
-		action("Fit", self.fit_all, "F", "Fit all views")
-		action("1:1", self.one_to_one_all, "1", "Reset zoom to 1:1")
+		action("Fit", self.fit_all, "Ctrl+Alt+F", "Fit all views")
+		action("1:1", self.one_to_one_all, "Ctrl+Alt+1", "Reset zoom to 1:1")
 		tb.addSeparator()
-		action("Save Mask", self.action_save_mask, "Ctrl+S", "Save mask image")
+		action("Save Mask", self.action_save_mask, "Ctrl+Alt+S", "Save mask image")
 		action("Save Highlight", self.action_save_highlight, None, "Save highlighted image")
 
 		# Theme switcher button to the toolbar (with icon and text --> you can change icon (source))
