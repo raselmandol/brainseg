@@ -143,7 +143,13 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		act_1x.triggered.connect(self.one_to_one_all)
 		view_menu.addAction(act_fit)
 		view_menu.addAction(act_1x)
+		# Another Theme switch action directly on the menubar
+		self.menu_theme_action = QtGui.QAction(self._get_theme_icon(), "Switch Theme", self)
+		self.menu_theme_action.setToolTip("Switch between day/night mode")
+		self.menu_theme_action.triggered.connect(self._toggle_theme)
+		# Help menu and then insert Theme
 		help_menu = menubar.addMenu("&Help")
+		menubar.insertAction(help_menu.menuAction(), self.menu_theme_action)
 		act_help = QtGui.QAction("Shortcuts", self)
 		act_help.triggered.connect(self._show_shortcuts)
 		help_menu.addAction(act_help)
@@ -172,7 +178,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		action("Save Mask", self.action_save_mask, "Ctrl+S", "Save mask image")
 		action("Save Highlight", self.action_save_highlight, None, "Save highlighted image")
 
-		# Theme switcher button to the toolbar (with icon and text)
+		# Theme switcher button to the toolbar (with icon and text --> you can change icon (source))
 		theme_icon = self._get_theme_icon()
 		self.theme_action = QtGui.QAction(theme_icon, "Switch Theme", self)
 		self.theme_action.setToolTip("Switch between day/night mode")
@@ -189,6 +195,9 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		# Always updating the icon to match the theme (reverse --> white/night)
 		if hasattr(self, 'theme_action'):
 			self.theme_action.setIcon(self._get_theme_icon())
+		# Update menubar theme action icon as well
+		if hasattr(self, 'menu_theme_action'):
+			self.menu_theme_action.setIcon(self._get_theme_icon())
 	def _build_footer(self):
 		self.statusBar().setSizeGripEnabled(False)
 		container = QtWidgets.QWidget()
