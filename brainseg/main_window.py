@@ -143,9 +143,9 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		view_menu.addAction(act_fit)
 		view_menu.addAction(act_1x)
 		# Another Theme switch action directly on the menubar
-		self.menu_theme_action = QtGui.QAction(self._get_theme_icon(), "Switch Theme", self)
-		self.menu_theme_action.setToolTip("Switch between day/night mode")
-		self.menu_theme_action.triggered.connect(self._toggle_theme)
+		# self.menu_theme_action = QtGui.QAction(self._get_theme_icon(), "Switch Theme", self)
+		# self.menu_theme_action.setToolTip("Switch between day/night mode")
+		# self.menu_theme_action.triggered.connect(self._toggle_theme)
 		# Help menu and then insert Theme
 		help_menu = menubar.addMenu("&Help")
 		menubar.insertAction(help_menu.menuAction(), self.menu_theme_action)
