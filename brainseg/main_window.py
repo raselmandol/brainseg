@@ -204,7 +204,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		h.setContentsMargins(0, 0, 0, 0)
 		h.addStretch()
 		label = QtWidgets.QLabel("Made by Md. Rasel Mandol — Smart Systems & Connectivity Lab, NIT Meghalaya")
-		label.setStyleSheet("color: #666; font-size: 12px;")
+		label.setStyleSheet("color: #322c94; font-size: 12px;")
 		label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 		h.addWidget(label)
 		h.addStretch()
