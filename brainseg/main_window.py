@@ -148,7 +148,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		# self.menu_theme_action.triggered.connect(self._toggle_theme)
 		# Help menu and then insert Theme
 		help_menu = menubar.addMenu("&Help")
-		menubar.insertAction(help_menu.menuAction(), self.menu_theme_action)
+		# menubar.insertAction(help_menu.menuAction(), self.menu_theme_action)
 		act_help = QtGui.QAction("Shortcuts", self)
 		act_help.triggered.connect(self._show_shortcuts)
 		help_menu.addAction(act_help)
@@ -195,8 +195,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		if hasattr(self, 'theme_action'):
 			self.theme_action.setIcon(self._get_theme_icon())
 		# Update menubar theme action icon as well
-		if hasattr(self, 'menu_theme_action'):
-			self.menu_theme_action.setIcon(self._get_theme_icon())
+		# if hasattr(self, 'menu_theme_action'):
+		# 	self.menu_theme_action.setIcon(self._get_theme_icon())
 	def _build_footer(self):
 		self.statusBar().setSizeGripEnabled(False)
 		container = QtWidgets.QWidget()
