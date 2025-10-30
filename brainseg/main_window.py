@@ -189,8 +189,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.theme = "dark"
 			self.setStyleSheet(DARK_THEME)
 		else:
-			self.theme = "dark"
-			self.setStyleSheet(DARK_THEME)
+			self.theme = "light"
+			self.setStyleSheet(LIGHT_THEME)
 		# Always updating the icon to match the theme (reverse --> white/night)
 		if hasattr(self, 'theme_action'):
 			self.theme_action.setIcon(self._get_theme_icon())
