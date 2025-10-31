@@ -23,6 +23,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.assets_dir = os.path.join(module_dir, "assets")
 		self.setStyleSheet(LIGHT_THEME)
 		self.current_image = None
+		self.base_image = None  # store original loaded image
 		self.current_mask = None
 		self.current_highlight = None
 		self.current_path = None
@@ -133,18 +134,26 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		tmp = np.clip(tmp, 0, 255).astype(np.uint8)
 		return tmp
 
+	def _get_brightness_adjusted_image(self) -> np.ndarray:
+		"""Return brightness-adjusted image computed from base_image."""
+		if self.base_image is None:
+			return None
+		return self._apply_brightness(self.base_image)
+
 	def _refresh_original_display(self):
 		"""Refresh the Original view according to current brightness."""
-		if self.current_image is None:
+		if self.base_image is None:
 			self.canvas_orig.clear_image()
 			return
-		adjusted = self._apply_brightness(self.current_image)
+		adjusted = self._get_brightness_adjusted_image()
 		self.canvas_orig.set_image_np(adjusted)
 
 	def _on_brightness_changed(self, value: int):
 		self.brightness_value = int(value)
 		if hasattr(self, 'brightness_label'):
 			self.brightness_label.setText(str(self.brightness_value))
+		# Update current_image used for segmentation to reflect new brightness
+		self.current_image = self._get_brightness_adjusted_image()
 		# Update only the Original view in real time
 		self._refresh_original_display()
 	def action_select_model(self):
@@ -265,7 +274,9 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.status_label.setText("Loading image...")
 			QtWidgets.QApplication.processEvents()
 			img_rgb = pil_or_cv_to_rgb_np(fname)
-			self.current_image = img_rgb
+			self.base_image = img_rgb
+			# Set current_image as adjusted version to be used as model input
+			self.current_image = self._get_brightness_adjusted_image()
 			self.current_mask = None
 			self.current_highlight = None
 			self.current_path = fname
