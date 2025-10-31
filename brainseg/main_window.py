@@ -23,7 +23,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.assets_dir = os.path.join(module_dir, "assets")
 		self.setStyleSheet(LIGHT_THEME)
 		self.current_image = None
-		self.base_image = None  # store original loaded image
+		self.base_image = None  # store original loaded image (next-->temp)
 		self.current_mask = None
 		self.current_highlight = None
 		self.current_path = None
@@ -154,7 +154,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.brightness_label.setText(str(self.brightness_value))
 		# Update current_image used for segmentation to reflect new brightness
 		self.current_image = self._get_brightness_adjusted_image()
-		# Update only the Original view in real time
+		# Update only the Original view (canvas_orig/realview) in real time
 		self._refresh_original_display()
 	def action_select_model(self):
 		from .model import set_model_path, MODEL_PATH
