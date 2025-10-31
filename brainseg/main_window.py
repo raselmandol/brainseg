@@ -26,6 +26,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.current_mask = None
 		self.current_highlight = None
 		self.current_path = None
+		# Brightness adjustment state (-100..100)
+		self.brightness_value = 0
 		self.canvas_orig = ImageCanvas("Original")
 		self.canvas_mask = ImageCanvas("Segmented Mask")
 		self.canvas_high = ImageCanvas("Highlighted Tumor")
@@ -78,6 +80,23 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		v.addWidget(btn_save_mask)
 		v.addWidget(btn_save_high)
 		v.addSpacing(8)
+		# Brightness slider
+		brightness_row = QtWidgets.QHBoxLayout()
+		lbl_b = QtWidgets.QLabel("Brightness:")
+		lbl_b.setObjectName("hint")
+		self.brightness_label = QtWidgets.QLabel("0")
+		self.brightness_label.setFixedWidth(28)
+		self.brightness_slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+		self.brightness_slider.setRange(-100, 100)
+		self.brightness_slider.setSingleStep(1)
+		self.brightness_slider.setPageStep(10)
+		self.brightness_slider.setValue(0)
+		self.brightness_slider.valueChanged.connect(self._on_brightness_changed)
+		brightness_row.addWidget(lbl_b)
+		brightness_row.addWidget(self.brightness_slider)
+		brightness_row.addWidget(self.brightness_label)
+		v.addLayout(brightness_row)
+		v.addSpacing(8)
 		controls_frame = QtWidgets.QFrame()
 		controls_layout = QtWidgets.QHBoxLayout(controls_frame)
 		controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -101,6 +120,33 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		panel.setMinimumWidth(240)
 		dock.setWidget(panel)
 		self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, dock)
+
+	def _apply_brightness(self, img_rgb: np.ndarray) -> np.ndarray:
+		"""Apply current brightness_value to an RGB uint8 image non-destructively."""
+		if img_rgb is None:
+			return None
+		if self.brightness_value == 0:
+			return img_rgb
+		# Additive brightness adjustment, clip to valid range
+		delta = int(self.brightness_value)
+		tmp = img_rgb.astype(np.int16) + delta
+		tmp = np.clip(tmp, 0, 255).astype(np.uint8)
+		return tmp
+
+	def _refresh_original_display(self):
+		"""Refresh the Original view according to current brightness."""
+		if self.current_image is None:
+			self.canvas_orig.clear_image()
+			return
+		adjusted = self._apply_brightness(self.current_image)
+		self.canvas_orig.set_image_np(adjusted)
+
+	def _on_brightness_changed(self, value: int):
+		self.brightness_value = int(value)
+		if hasattr(self, 'brightness_label'):
+			self.brightness_label.setText(str(self.brightness_value))
+		# Update only the Original view in real time
+		self._refresh_original_display()
 	def action_select_model(self):
 		from .model import set_model_path, MODEL_PATH
 		fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Model File", os.getcwd(), "Model Files (*.pth)")
@@ -224,7 +270,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.current_highlight = None
 			self.current_path = fname
 			self.label_filename.setText(os.path.basename(fname))
-			self.canvas_orig.set_image_np(img_rgb)
+			# Show original with current brightness adjustment
+			self._refresh_original_display()
 			self.canvas_mask.clear_image()
 			self.canvas_high.clear_image()
 			self.status_label.setText("Image loaded. Press Run or Ctrl+R.")
