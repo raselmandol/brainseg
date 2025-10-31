@@ -19,3 +19,4 @@ pip-wheel-metadata/
 Thumbs.db
 
 brainaseg/__pycache__
+brainseg-base.spec
