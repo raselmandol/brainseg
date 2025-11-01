@@ -31,6 +31,23 @@ class SegmentationApp(QtWidgets.QMainWindow):
 					self.assets_dir = p
 					break
 		if not self.assets_dir:
+			# Also try alongside the executable (onedir or manual placement)
+			# best is to include assets in the bundle though (using datas in .spec)
+			# This helps when running as a single executable or from different working dirs
+			# or you can include assets in the command line (build) using --add-data
+			try:
+				exe_dir = os.path.dirname(sys.executable)
+				candidates = [
+					os.path.join(exe_dir, 'brainseg', 'assets'),
+					os.path.join(exe_dir, 'assets'),
+				]
+				for p in candidates:
+					if os.path.exists(p):
+						self.assets_dir = p
+						break
+			except Exception:
+				pass
+		if not self.assets_dir:
 			module_dir = os.path.dirname(os.path.abspath(__file__))
 			self.assets_dir = os.path.join(module_dir, 'assets')
 		self.setStyleSheet(LIGHT_THEME)
