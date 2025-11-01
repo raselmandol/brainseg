@@ -18,9 +18,21 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.resize(1100, 550)
 		self.theme = "light"
 		self.theme_style = 1  # 1 or 2, for icon style
-		# Get the directory where this file is located (filename_1.png, _2.png/reverse mode (day/night) icons are stored there)
-		module_dir = os.path.dirname(os.path.abspath(__file__))
-		self.assets_dir = os.path.join(module_dir, "assets")
+		# PyInstaller missing icon issue
+		# In PyInstaller, data files are unpacked to sys._MEIPASS
+		self.assets_dir = None
+		if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+			candidates = [
+				os.path.join(sys._MEIPASS, 'brainseg', 'assets'),  # (Use) when bundled with dest 'brainseg/assets'
+				os.path.join(sys._MEIPASS, 'assets'),              # (Use) when bundled with dest 'assets'
+			]
+			for p in candidates:
+				if os.path.exists(p):
+					self.assets_dir = p
+					break
+		if not self.assets_dir:
+			module_dir = os.path.dirname(os.path.abspath(__file__))
+			self.assets_dir = os.path.join(module_dir, 'assets')
 		self.setStyleSheet(LIGHT_THEME)
 		self.current_image = None
 		self.base_image = None  # store original loaded image (next-->temp)
