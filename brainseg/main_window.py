@@ -2,6 +2,7 @@ import cv2
 from PyQt6 import QtCore, QtGui, QtWidgets
 import os
 import sys
+import psutil, time
 import numpy as np
 from .canvas import ImageCanvas
 from .image_utils import pil_or_cv_to_rgb_np
@@ -11,6 +12,10 @@ from .worker import InferenceWorker
 from .help_window import HelpWindow
 from .theme import LIGHT_THEME, DARK_THEME, get_icon_path
 
+from .statistics_tracker import statistics_tracker
+from .statistics_window import StatisticsWindow
+
+
 class SegmentationApp(QtWidgets.QMainWindow):
 	def __init__(self):
 		super().__init__()
@@ -18,6 +23,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.resize(1100, 550)
 		self.theme = "light"
 		self.theme_style = 1  # 1 or 2, for icon style
+		self.statistics_window = None
 		# PyInstaller missing icon issue
 		# In PyInstaller, data files are unpacked to sys._MEIPASS
 		self.assets_dir = None
@@ -31,10 +37,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 					self.assets_dir = p
 					break
 		if not self.assets_dir:
-			# Also try alongside the executable (onedir or manual placement)
-			# best is to include assets in the bundle though (using datas in .spec)
-			# This helps when running as a single executable or from different working dirs
-			# or you can include assets in the command line (build) using --add-data
 			try:
 				exe_dir = os.path.dirname(sys.executable)
 				candidates = [
@@ -76,6 +78,14 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._build_menubar()
 		self._build_toolbar()
 		self._build_footer()
+
+	def show_statistics_window(self):
+		if self.statistics_window is None or not self.statistics_window.isVisible():
+			self.statistics_window = StatisticsWindow(self)
+			self.statistics_window.show()
+		else:
+			self.statistics_window.raise_()
+			self.statistics_window.activateWindow()
 
 	def _get_theme_icon(self):
 		# Always use night-mode1.png for light, white-mode1.png for dark
@@ -226,6 +236,11 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		act_1x.triggered.connect(self.one_to_one_all)
 		view_menu.addAction(act_fit)
 		view_menu.addAction(act_1x)
+
+		stats_menu = menubar.addMenu("&Statistics")
+		act_stats = QtGui.QAction("Show Statistics", self)
+		act_stats.triggered.connect(self.show_statistics_window)
+		stats_menu.addAction(act_stats)
 		# Another Theme switch action directly on the menubar
 		# self.menu_theme_action = QtGui.QAction(self._get_theme_icon(), "Switch Theme", self)
 		# self.menu_theme_action.setToolTip("Switch between day/night mode")
@@ -321,11 +336,25 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		if self.current_image is None:
 			self.status_label.setText("No image loaded.")
 			return
-		worker = InferenceWorker(self.current_image)
-		worker.signals.progress.connect(self._on_progress)
-		worker.signals.finished.connect(self._on_inference_finished)
-		QtCore.QThreadPool.globalInstance().start(worker)
-		self.status_label.setText("Queued segmentation...")
+
+		process = psutil.Process()
+		mem_before = process.memory_info().rss / (1024 * 1024)
+		t0 = time.perf_counter()
+		mask_up, highlighted = run_inference_on_image(self.current_image)
+		t1 = time.perf_counter()
+		mem_after = process.memory_info().rss / (1024 * 1024)
+		latency = t1 - t0
+		memory_peak = max(mem_before, mem_after)
+		statistics_tracker.record_segmentation(latency, memory_peak, accuracy=None)
+		self.current_mask = mask_up
+		self.current_highlight = highlighted
+		if self.current_mask.ndim == 2:
+			mask_rgb = np.stack([self.current_mask]*3, axis=-1)
+		else:
+			mask_rgb = self.current_mask
+		self.canvas_mask.set_image_np(mask_rgb)
+		self.canvas_high.set_image_np(self.current_highlight)
+		self.status_label.setText(f"Segmentation done in {latency:.3f}s")
 	def _on_progress(self, text: str):
 		self.status_label.setText(text)
 		QtWidgets.QApplication.processEvents()
