@@ -72,22 +72,22 @@ class StatisticsWindow(QtWidgets.QDialog):
         layout.addWidget(graphs_widget)
 
         # Description (now below graphs)
-        desc = QtWidgets.QLabel(
-            """
-            <b>Segmentation Statistics Overview</b><br>
-            This dashboard summarizes segmentation performance for the current session.<br>
-            <ul>
-            <li><b>Latency</b>: Time taken for each segmentation (p50/p95 percentiles).</li>
-            <li><b>Memory Peak</b>: Maximum memory used during segmentation.</li>
-            <li><b>Accuracy</b>: (If available) Mean accuracy and delta vs. candidate model.</li>
-            <li><b>Model Load Time</b>: Time to load the segmentation model.</li>
-            <li><b>Graphs</b>: Visualize trends for latency, memory, accuracy, and model load time.</li>
-            <li><b>Comparison</b>: Statistical test results (t-test) for accuracy between current and candidate models.</li>
-            </ul>
-            """
-        )
-        desc.setWordWrap(True)
-        layout.addWidget(desc)
+        # desc = QtWidgets.QLabel(
+        #     """
+        #     <b>Segmentation Statistics Overview</b><br>
+        #     This dashboard summarizes segmentation performance for the current session.<br>
+        #     <ul>
+        #     <li><b>Latency</b>: Time taken for each segmentation (p50/p95 percentiles).</li>
+        #     <li><b>Memory Peak</b>: Maximum memory used during segmentation.</li>
+        #     <li><b>Accuracy</b>: (If available) Mean accuracy and delta vs. candidate model.</li>
+        #     <li><b>Model Load Time</b>: Time to load the segmentation model.</li>
+        #     <li><b>Graphs</b>: Visualize trends for latency, memory, accuracy, and model load time.</li>
+        #     <li><b>Comparison</b>: Statistical test results (t-test) for accuracy between current and candidate models.</li>
+        #     </ul>
+        #     """
+        # )
+        # desc.setWordWrap(True)
+        # layout.addWidget(desc)
 
         # Comparison
         if stats:
