@@ -58,6 +58,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.current_mask = None
 		self.current_highlight = None
 		self.current_path = None
+		self.ground_truth_mask = None
+		self.ground_truth_path = None
 		# Brightness adjustment state (-100..100)
 		self.brightness_value = 0
 		self.canvas_orig = ImageCanvas("Original")
@@ -106,6 +108,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		v.setSpacing(10)
 		btn_open = QtWidgets.QPushButton("Open Image")
 		btn_open.clicked.connect(self.action_open_image)
+		btn_ground_truth = QtWidgets.QPushButton("Load Ground Truth")
+		btn_ground_truth.clicked.connect(self.action_load_ground_truth)
 		btn_select_model = QtWidgets.QPushButton("Select Model File")
 		btn_select_model.clicked.connect(self.action_select_model)
 		btn_run = QtWidgets.QPushButton("Run Segmentation")
@@ -115,6 +119,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		btn_save_high = QtWidgets.QPushButton("Save Highlight")
 		btn_save_high.clicked.connect(self.action_save_highlight)
 		v.addWidget(btn_open)
+		v.addWidget(btn_ground_truth)
 		v.addWidget(btn_select_model)
 		v.addWidget(btn_run)
 		v.addWidget(btn_save_mask)
@@ -153,6 +158,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.label_filename = QtWidgets.QLabel("No image loaded")
 		self.label_filename.setWordWrap(True)
 		v.addWidget(self.label_filename)
+		self.label_ground_truth = QtWidgets.QLabel("Ground truth: not loaded")
+		self.label_ground_truth.setObjectName("hint")
+		self.label_ground_truth.setWordWrap(True)
+		v.addWidget(self.label_ground_truth)
 		self.status_label = QtWidgets.QLabel("Ready")
 		self.status_label.setObjectName("hint")
 		v.addWidget(self.status_label)
@@ -203,6 +212,34 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.status_label.setText(f"Model selected: {os.path.basename(fname)}")
 		else:
 			self.status_label.setText("Model selection cancelled.")
+	def action_load_ground_truth(self):
+		file_filter = "Masks (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.npy)"
+		start_dir = os.path.dirname(self.ground_truth_path) if self.ground_truth_path else (
+			os.path.dirname(self.current_path) if self.current_path else os.getcwd()
+		)
+		fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Load Ground Truth Mask", start_dir, file_filter)
+		if not fname:
+			return
+		try:
+			if fname.lower().endswith(".npy"):
+				mask = np.load(fname)
+			else:
+				mask = cv2.imread(fname, cv2.IMREAD_UNCHANGED)
+				if mask is None:
+					raise ValueError("Unable to read mask file")
+				if mask.ndim == 3:
+					mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+		except Exception as exc:
+			self.status_label.setText(f"Failed to load ground truth: {exc}")
+			return
+		if self.base_image is not None and mask.shape[:2] != self.base_image.shape[:2]:
+			h, w = self.base_image.shape[:2]
+			mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+		mask_bin = (mask > 0).astype(np.uint8)
+		self.ground_truth_mask = mask_bin
+		self.ground_truth_path = fname
+		self.label_ground_truth.setText(f"Ground truth: {os.path.basename(fname)}")
+		self.status_label.setText("Ground truth mask loaded.")
 	def _build_menubar(self):
 		menubar = self.menuBar()
 		file_menu = menubar.addMenu("&File")
@@ -324,7 +361,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.current_mask = None
 			self.current_highlight = None
 			self.current_path = fname
+			self.ground_truth_mask = None
+			self.ground_truth_path = None
 			self.label_filename.setText(os.path.basename(fname))
+			self.label_ground_truth.setText("Ground truth: not loaded")
 			# Show original with current brightness adjustment
 			self._refresh_original_display()
 			self.canvas_mask.clear_image()
@@ -345,7 +385,17 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		mem_after = process.memory_info().rss / (1024 * 1024)
 		latency = t1 - t0
 		memory_peak = max(mem_before, mem_after)
-		statistics_tracker.record_segmentation(latency, memory_peak, accuracy=None)
+		quality_record = None
+		if self.ground_truth_mask is not None:
+			quality_record = statistics_tracker.record_quality(
+				mask_up,
+				self.ground_truth_mask,
+				os.path.basename(self.current_path) if self.current_path else None,
+			)
+		dice_accuracy = quality_record.aggregate["dice"] if quality_record else None
+		if dice_accuracy is not None and np.isnan(dice_accuracy):
+			dice_accuracy = None
+		statistics_tracker.record_segmentation(latency, memory_peak, accuracy=dice_accuracy)
 		self.current_mask = mask_up
 		self.current_highlight = highlighted
 		if self.current_mask.ndim == 2:
@@ -354,7 +404,12 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			mask_rgb = self.current_mask
 		self.canvas_mask.set_image_np(mask_rgb)
 		self.canvas_high.set_image_np(self.current_highlight)
-		self.status_label.setText(f"Segmentation done in {latency:.3f}s")
+		if quality_record and quality_record.aggregate["dice"] is not None:
+			self.status_label.setText(
+				f"Segmentation done in {latency:.3f}s · Dice {quality_record.aggregate['dice']:.3f}"
+			)
+		else:
+			self.status_label.setText(f"Segmentation done in {latency:.3f}s")
 	def _on_progress(self, text: str):
 		self.status_label.setText(text)
 		QtWidgets.QApplication.processEvents()
