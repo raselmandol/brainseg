@@ -330,9 +330,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		# Always updating the icon to match the theme (reverse --> white/night)
 		if hasattr(self, 'theme_action'):
 			self.theme_action.setIcon(self._get_theme_icon())
-		# Update menubar theme action icon as well
-		# if hasattr(self, 'menu_theme_action'):
-		# 	self.menu_theme_action.setIcon(self._get_theme_icon())
 		self._update_footer_label_style()
 
 	def _update_footer_label_style(self):
