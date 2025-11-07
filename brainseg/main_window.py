@@ -333,18 +333,27 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		# Update menubar theme action icon as well
 		# if hasattr(self, 'menu_theme_action'):
 		# 	self.menu_theme_action.setIcon(self._get_theme_icon())
+		self._update_footer_label_style()
+
+	def _update_footer_label_style(self):
+		if not hasattr(self, 'footer_label') or self.footer_label is None:
+			return
+		if self.theme == "dark":
+			self.footer_label.setStyleSheet("color: #ffffff; font-size: 12px;")
+		else:
+			self.footer_label.setStyleSheet("color: #111111; font-size: 12px;")
 	def _build_footer(self):
 		self.statusBar().setSizeGripEnabled(False)
 		container = QtWidgets.QWidget()
 		h = QtWidgets.QHBoxLayout(container)
 		h.setContentsMargins(0, 0, 0, 0)
 		h.addStretch()
-		label = QtWidgets.QLabel("Made by Md. Rasel Mandol — Smart Systems & Connectivity Lab, NIT Meghalaya")
-		label.setStyleSheet("color: #322c94; font-size: 12px;")
-		label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-		h.addWidget(label)
+		self.footer_label = QtWidgets.QLabel("Made by Md. Rasel Mandol — Smart Systems & Connectivity Lab, NIT Meghalaya")
+		self.footer_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+		h.addWidget(self.footer_label)
 		h.addStretch()
 		self.statusBar().addPermanentWidget(container, 1)
+		self._update_footer_label_style()
 	def action_open_image(self):
 		file_filter = "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp)"
 		start_dir = os.path.dirname(self.current_path) if self.current_path else os.getcwd()
