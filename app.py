@@ -341,7 +341,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
         # --- Central area: three canvases inside a splitter (resizable)
         self.canvas_orig = ImageCanvas("Original")
         self.canvas_mask = ImageCanvas("Segmented Mask")
-        self.canvas_high = ImageCanvas("Highlighted Tumor")
+        self.canvas_high = ImageCanvas("Highlighted Region")
 
         splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         splitter.addWidget(self.canvas_orig.container())
