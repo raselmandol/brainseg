@@ -194,7 +194,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.canvas_orig.clear_image()
 			return
 		adjusted = self._get_brightness_adjusted_image()
-		self.canvas_orig.set_image_np(adjusted)
+		if self.canvas_orig.has_image():
+			self.canvas_orig.update_image_np(adjusted)
+		else:
+			self.canvas_orig.set_image_np(adjusted)
 
 	def _on_brightness_changed(self, value: int):
 		self.brightness_value = int(value)
@@ -372,6 +375,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.label_filename.setText(os.path.basename(fname))
 			self.label_ground_truth.setText("Ground truth: not loaded")
 			# Show original with current brightness adjustment
+			self.canvas_orig.clear_image()
 			self._refresh_original_display()
 			self.canvas_mask.clear_image()
 			self.canvas_high.clear_image()
