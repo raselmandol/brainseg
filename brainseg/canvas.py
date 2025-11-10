@@ -34,12 +34,20 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		v.addWidget(self)
 	def container(self) -> QtWidgets.QWidget:
 		return self.wrapper
+	def has_image(self) -> bool:
+		return self._pixitem is not None
 	def set_image_np(self, img: np.ndarray):
 		if img is None:
 			self.clear_image()
 			return
 		pm = numpy_to_qpixmap(img)
 		self.set_pixmap(pm)
+	def update_image_np(self, img: np.ndarray):
+		if img is None:
+			self.clear_image()
+			return
+		pm = numpy_to_qpixmap(img)
+		self.update_pixmap(pm)
 	def set_pixmap(self, pixmap: QtGui.QPixmap):
 		self._current_pixmap = pixmap
 		self._scene.clear()
@@ -47,6 +55,17 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		self._scene.setSceneRect(self._pixitem.boundingRect())
 		self._zoom = 0
 		self.fit_to_window()
+	def update_pixmap(self, pixmap: QtGui.QPixmap):
+		if self._pixitem is None:
+			self.set_pixmap(pixmap)
+			return
+		current_transform = QtGui.QTransform(self.transform())
+		view_center = self.mapToScene(self.viewport().rect().center())
+		self._current_pixmap = pixmap
+		self._pixitem.setPixmap(pixmap)
+		self._scene.setSceneRect(self._pixitem.boundingRect())
+		self.setTransform(current_transform, False)
+		self.centerOn(view_center)
 	def clear_image(self):
 		self._scene.clear()
 		self._pixitem = None
