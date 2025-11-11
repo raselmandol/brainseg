@@ -147,44 +147,57 @@ class HelpWindow(QtWidgets.QDialog):
         layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
         
         about_html = """
-        <h2 style="text-align: center;">BrainSeg</h2>
-        <p style="text-align: center; font-size: 14px;">Brain Abnormality Segmentation Application</p>
-        <p style="text-align: center; font-size: 13px;"><b>Version:</b> 0.1.0</p>
-        
-        <hr style="margin: 20px 0;">
-        
-        <h3>About</h3>
-        <p>BrainSeg is a specialized tool for detecting and segmenting abnormalities in brain MRI images using deep learning.</p>
-        <p>The application uses a default (pretrained) U-Net architecture with EfficientNet-B7 encoder for accurate segmentation of brain tumors and other abnormalities.</p>
-        
-        <h3>Features</h3>
-        <ul>
-            <li>Real-time brain MRI segmentation</li>
-            <li>Interactive image viewing with zoom and pan</li>
-            <li>Multiple output formats (mask and highlighted views)</li>
-            <li>Support for various image formats</li>
-            <li>GPU acceleration support (when available)</li>
-            <li>Model hot-swapping capability</li>
-        </ul>
-        
-        <h3>Technology Stack</h3>
-        <ul>
-            <li><b>Framework:</b> PyQt6</li>
-            <li><b>Deep Learning:</b> PyTorch, Segmentation Models PyTorch</li>
-            <li><b>Image Processing:</b> OpenCV, NumPy, SciPy</li>
-        </ul>
-        
-        <h3>Developer</h3>
-        <p><b>Md. Rasel Mandol</b><br>
-        Smart Systems & Connectivity Lab<br>
-        National Institute of Technology Meghalaya</p>
-        
-        <h3>License</h3>
-        <p>[MIT] This software is provided for research and educational purposes.</p>
-        
-        <p style="margin-top: 30px; text-align: center; color: #95a5a6; font-size: 12px;">
-        © 2025 SSC LAB | BrainSeg. All rights reserved.
-        </p>
+        <div style="max-width: 520px; margin: 0 auto;">
+            <h2 style="text-align: center; letter-spacing: 0.8px;">BrainSeg</h2>
+            <p style="text-align: center; font-size: 14px; color: #5f6368;">Precision brain abnormality segmentation for research-grade imaging pipelines.</p>
+            <p style="text-align: center; font-size: 13px;"><b>Release:</b> 0.1.0 &nbsp;|&nbsp; <b>Last Update:</b> 2025</p>
+
+            <hr style="margin: 24px 0;">
+
+            <h3>Purpose</h3>
+            <p>BrainSeg streamlines the evaluation of brain MRI studies by coupling state-of-the-art deep learning with an interactive analytical interface. Designed for medical imaging researchers, it accelerates hypothesis testing, model benchmarking, and exploratory analysis.</p>
+
+            <h3>What You Can Expect</h3>
+            <ul>
+                <li><b>Robust segmentation:</b> U-Net (EfficientNet-B7 backbone) tuned for focal lesion delineation.</li>
+                <li><b>Live analytics:</b> Latency, memory, load profiling, and ground-truth quality comparisons in one dashboard.</li>
+                <li><b>Research ergonomics:</b> Fine-grained zoom/pan, brightness control, and theme-aware presentation for prolonged review sessions.</li>
+                <li><b>Seamless export:</b> Save binary masks and annotated overlays with experiment-friendly naming.</li>
+            </ul>
+
+            <h3>Technology Stack</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 6px 0; width: 35%;"><b>Application</b></td>
+                    <td style="padding: 6px 0;">PyQt6</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0;"><b>Inference</b></td>
+                    <td style="padding: 6px 0;">PyTorch · segmentation-models-pytorch</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0;"><b>Imaging</b></td>
+                    <td style="padding: 6px 0;">OpenCV · NumPy · SciPy</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0;"><b>Analytics</b></td>
+                    <td style="padding: 6px 0;">Matplotlib · SciPy statistics</td>
+                </tr>
+            </table>
+
+            <h3>Authorship</h3>
+            <p>
+                <b>Md. Rasel Mandol</b><br>
+                Smart Systems & Connectivity Lab, National Institute of Technology Meghalaya
+            </p>
+
+            <h3>Usage & License</h3>
+            <p>This build is distributed under the MIT License for research and educational use. Please acknowledge SSC Lab when publishing results generated with BrainSeg.</p>
+
+            <p style="margin-top: 32px; text-align: center; color: #95a5a6; font-size: 12px;">
+                © 2025 Smart Systems & Connectivity Lab · BrainSeg
+            </p>
+        </div>
         """
         
         label = QtWidgets.QLabel(about_html)
