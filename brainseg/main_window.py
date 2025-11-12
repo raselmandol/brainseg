@@ -144,7 +144,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		v.addLayout(brightness_row)
 		# Contrast slider
 		contrast_row = QtWidgets.QHBoxLayout()
-		lbl_c = QtWidgets.QLabel("Contrast:")
+		lbl_c = QtWidgets.QLabel("Contrast:   ")
 		lbl_c.setObjectName("hint")
 		self.contrast_label = QtWidgets.QLabel("0")
 		self.contrast_label.setFixedWidth(28)
