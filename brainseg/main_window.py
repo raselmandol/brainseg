@@ -62,6 +62,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.ground_truth_path = None
 		# Brightness adjustment state (-100..100)
 		self.brightness_value = 0
+		self.contrast_value = 0
 		self.canvas_orig = ImageCanvas("Original")
 		self.canvas_mask = ImageCanvas("Segmented Mask")
 		self.canvas_high = ImageCanvas("Highlighted Region")
@@ -141,6 +142,22 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		brightness_row.addWidget(self.brightness_slider)
 		brightness_row.addWidget(self.brightness_label)
 		v.addLayout(brightness_row)
+		# Contrast slider
+		contrast_row = QtWidgets.QHBoxLayout()
+		lbl_c = QtWidgets.QLabel("Contrast:")
+		lbl_c.setObjectName("hint")
+		self.contrast_label = QtWidgets.QLabel("0")
+		self.contrast_label.setFixedWidth(28)
+		self.contrast_slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+		self.contrast_slider.setRange(-100, 100)
+		self.contrast_slider.setSingleStep(1)
+		self.contrast_slider.setPageStep(10)
+		self.contrast_slider.setValue(0)
+		self.contrast_slider.valueChanged.connect(self._on_contrast_changed)
+		contrast_row.addWidget(lbl_c)
+		contrast_row.addWidget(self.contrast_slider)
+		contrast_row.addWidget(self.contrast_label)
+		v.addLayout(contrast_row)
 		v.addSpacing(8)
 		controls_frame = QtWidgets.QFrame()
 		controls_layout = QtWidgets.QHBoxLayout(controls_frame)
@@ -170,30 +187,33 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		dock.setWidget(panel)
 		self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, dock)
 
-	def _apply_brightness(self, img_rgb: np.ndarray) -> np.ndarray:
-		"""Apply current brightness_value to an RGB uint8 image non-destructively."""
+	def _apply_image_adjustments(self, img_rgb: np.ndarray) -> np.ndarray:
+		"""Apply brightness and contrast adjustments to an RGB uint8 image."""
 		if img_rgb is None:
 			return None
-		if self.brightness_value == 0:
+		if self.brightness_value == 0 and self.contrast_value == 0:
 			return img_rgb
-		# Additive brightness adjustment, clip to valid range
-		delta = int(self.brightness_value)
-		tmp = img_rgb.astype(np.int16) + delta
-		tmp = np.clip(tmp, 0, 255).astype(np.uint8)
-		return tmp
+		img = img_rgb.astype(np.float32)
+		if self.contrast_value != 0:
+			factor = 1.0 + (self.contrast_value / 100.0)
+			img = (img - 127.5) * factor + 127.5
+		if self.brightness_value != 0:
+			img += float(self.brightness_value)
+		img = np.clip(img, 0, 255)
+		return img.astype(np.uint8)
 
-	def _get_brightness_adjusted_image(self) -> np.ndarray:
-		"""Return brightness-adjusted image computed from base_image."""
+	def _get_adjusted_image(self) -> np.ndarray:
+		"""Return image from base_image with current display adjustments."""
 		if self.base_image is None:
 			return None
-		return self._apply_brightness(self.base_image)
+		return self._apply_image_adjustments(self.base_image)
 
 	def _refresh_original_display(self):
 		"""Refresh the Original view according to current brightness."""
 		if self.base_image is None:
 			self.canvas_orig.clear_image()
 			return
-		adjusted = self._get_brightness_adjusted_image()
+		adjusted = self._get_adjusted_image()
 		if self.canvas_orig.has_image():
 			self.canvas_orig.update_image_np(adjusted)
 		else:
@@ -203,9 +223,14 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.brightness_value = int(value)
 		if hasattr(self, 'brightness_label'):
 			self.brightness_label.setText(str(self.brightness_value))
-		# Update current_image used for segmentation to reflect new brightness
-		self.current_image = self._get_brightness_adjusted_image()
-		# Update only the Original view (canvas_orig/realview) in real time
+		self.current_image = self._get_adjusted_image()
+		self._refresh_original_display()
+
+	def _on_contrast_changed(self, value: int):
+		self.contrast_value = int(value)
+		if hasattr(self, 'contrast_label'):
+			self.contrast_label.setText(str(self.contrast_value))
+		self.current_image = self._get_adjusted_image()
 		self._refresh_original_display()
 	def action_select_model(self):
 		from .model import set_model_path, MODEL_PATH
@@ -366,7 +391,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			img_rgb = pil_or_cv_to_rgb_np(fname)
 			self.base_image = img_rgb
 			# Set current_image as adjusted version to be used as model input
-			self.current_image = self._get_brightness_adjusted_image()
+			self.current_image = self._get_adjusted_image()
 			self.current_mask = None
 			self.current_highlight = None
 			self.current_path = fname
