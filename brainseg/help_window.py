@@ -105,7 +105,10 @@ class HelpWindow(QtWidgets.QDialog):
         <p>Click <b>"Open Image"</b> or press <code>Ctrl+Alt+O</code> to select a brain MRI image.</p>
         <p>Supported formats: PNG, JPG, JPEG, TIF, TIFF, BMP</p>
         
-        <h3>Step 3: Run Segmentation</h3>
+        <h3>Step 3: Tune the View</h3>
+        <p>Use the <b>Brightness</b> and <b>Contrast</b> sliders in the control panel to match your preferred viewing profile. Adjustments update in real time without disturbing your zoom or pan state.</p>
+
+        <h3>Step 4: Run Segmentation</h3>
         <p>Click <b>"Run Segmentation"</b> or press <code>Ctrl+Alt+R</code> to process the image.</p>
         <p>The application will display:</p>
         <ul>
@@ -114,7 +117,7 @@ class HelpWindow(QtWidgets.QDialog):
             <li><b>Highlighted Tumor</b> - Original image with abnormalities outlined in red</li>
         </ul>
         
-        <h3>Step 4: Save Results</h3>
+        <h3>Step 5: Save Results</h3>
         <p>Use <b>"Save Mask"</b> (Ctrl+Alt+S) or <b>"Save Highlight"</b> to save the processed images.</p>
         <p>Output files are automatically named: <code>originalname_mask.png</code> and <code>originalname_highlight.png</code></p>
         
