@@ -14,6 +14,7 @@ setup(
         "opencv-python",
         "numpy",
         "scipy",
+        "psutil",
         "PyQt6"
     ],
     entry_points={
