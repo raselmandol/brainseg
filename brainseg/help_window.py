@@ -120,6 +120,11 @@ class HelpWindow(QtWidgets.QDialog):
         <h3>Step 5: Save Results</h3>
         <p>Use <b>"Save Mask"</b> (Ctrl+Alt+S) or <b>"Save Highlight"</b> to save the processed images.</p>
         <p>Output files are automatically named: <code>originalname_mask.png</code> and <code>originalname_highlight.png</code></p>
+
+        <h3>Build an Executable</h3>
+        <p>To package the application as a standalone executable with PyInstaller, run the following command from the project root:</p>
+        <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;"><code>pyinstaller --name brainseg-base --onefile --windowed --icon=icon.ico --add-data "brainseg\assets;brainseg\assets"</code></pre>
+        <p>The produced binary will appear in the <code>dist/</code> folder. Make sure the virtual environment includes all dependencies before building.</p>
         
         <h3>Navigation Tips</h3>
         <ul>
