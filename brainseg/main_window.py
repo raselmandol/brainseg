@@ -5,7 +5,7 @@ import sys
 import psutil, time
 import numpy as np
 from .canvas import ImageCanvas
-from .image_utils import pil_or_cv_to_rgb_np
+from .image_utils import pil_or_cv_to_rgb_np, numpy_to_qpixmap
 from .model import get_model, run_inference_on_image, MODEL_PATH
 
 from .worker import InferenceWorker
@@ -175,10 +175,22 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.label_filename = QtWidgets.QLabel("No image loaded")
 		self.label_filename.setWordWrap(True)
 		v.addWidget(self.label_filename)
+
+		# Ground-truth row: thumbnail + status label
+		gt_row = QtWidgets.QWidget()
+		gt_layout = QtWidgets.QHBoxLayout(gt_row)
+		gt_layout.setContentsMargins(0, 0, 0, 0)
+		gt_layout.setSpacing(8)
+		self.ground_truth_thumb = QtWidgets.QLabel()
+		self.ground_truth_thumb.setFixedSize(88, 64)
+		self.ground_truth_thumb.setScaledContents(False)
+		self.ground_truth_thumb.setStyleSheet("border: 1px solid #cfcfcf; background: #222;")
 		self.label_ground_truth = QtWidgets.QLabel("Ground truth: not loaded")
 		self.label_ground_truth.setObjectName("hint")
 		self.label_ground_truth.setWordWrap(True)
-		v.addWidget(self.label_ground_truth)
+		gt_layout.addWidget(self.ground_truth_thumb)
+		gt_layout.addWidget(self.label_ground_truth, 1)
+		v.addWidget(gt_row)
 		self.status_label = QtWidgets.QLabel("Ready")
 		self.status_label.setObjectName("hint")
 		v.addWidget(self.status_label)
@@ -267,6 +279,21 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.ground_truth_mask = mask_bin
 		self.ground_truth_path = fname
 		self.label_ground_truth.setText(f"Ground truth: {os.path.basename(fname)}")
+		# A small thumbnail for the dock
+		try:
+			thumb_rgb = None
+			if mask_bin.ndim == 2:
+				thumb_rgb = np.stack([mask_bin * 255] * 3, axis=-1).astype(np.uint8)
+			else:
+				# Converting single-channel to 3-channel
+				thumb_rgb = mask_bin.copy()
+			pm = numpy_to_qpixmap(thumb_rgb)
+			pm = pm.scaled(self.ground_truth_thumb.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
+			self.ground_truth_thumb.setPixmap(pm)
+			self.ground_truth_thumb.setStyleSheet("border: 1px solid #6c6c6c; background: transparent;")
+		except Exception:
+			# fallback:---> clear thumb
+			self.ground_truth_thumb.clear()
 		self.status_label.setText("Ground truth mask loaded.")
 	def _build_menubar(self):
 		menubar = self.menuBar()
@@ -399,7 +426,9 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.ground_truth_path = None
 			self.label_filename.setText(os.path.basename(fname))
 			self.label_ground_truth.setText("Ground truth: not loaded")
-			# Show original with current brightness adjustment
+			# Clearing thumbnail when loading a new image
+			self.ground_truth_thumb.clear()
+			# Showing original with current brightness adjustment
 			self.canvas_orig.clear_image()
 			self._refresh_original_display()
 			self.canvas_mask.clear_image()
