@@ -20,3 +20,7 @@ Thumbs.db
 
 brainaseg/__pycache__
 brainseg-base.spec
+
+rq_venv.txt
+requirements_venv.txt
+requirements_tracker.txt
