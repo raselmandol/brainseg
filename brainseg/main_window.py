@@ -184,7 +184,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.ground_truth_thumb = QtWidgets.QLabel()
 		self.ground_truth_thumb.setFixedSize(88, 64)
 		self.ground_truth_thumb.setScaledContents(False)
-		self.ground_truth_thumb.setStyleSheet("border: 1px solid #cfcfcf; background: #222;")
+		self.ground_truth_thumb.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+		self.ground_truth_thumb.setStyleSheet("border: 1px solid #000000; background: transparent;")
 		self.label_ground_truth = QtWidgets.QLabel("Ground truth: not loaded")
 		self.label_ground_truth.setObjectName("hint")
 		self.label_ground_truth.setWordWrap(True)
@@ -290,10 +291,11 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			pm = numpy_to_qpixmap(thumb_rgb)
 			pm = pm.scaled(self.ground_truth_thumb.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio, QtCore.Qt.TransformationMode.SmoothTransformation)
 			self.ground_truth_thumb.setPixmap(pm)
-			self.ground_truth_thumb.setStyleSheet("border: 1px solid #6c6c6c; background: transparent;")
+			self.ground_truth_thumb.setStyleSheet("border: 1px solid #000000; background: transparent;")
 		except Exception:
 			# fallback:---> clear thumb
 			self.ground_truth_thumb.clear()
+			self.ground_truth_thumb.setStyleSheet("border: 1px solid #000000; background: transparent;")
 		self.status_label.setText("Ground truth mask loaded.")
 	def _build_menubar(self):
 		menubar = self.menuBar()
@@ -428,6 +430,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.label_ground_truth.setText("Ground truth: not loaded")
 			# Clearing thumbnail when loading a new image
 			self.ground_truth_thumb.clear()
+			self.ground_truth_thumb.setStyleSheet("border: 1px solid #000000; background: transparent;")
 			# Showing original with current brightness adjustment
 			self.canvas_orig.clear_image()
 			self._refresh_original_display()
