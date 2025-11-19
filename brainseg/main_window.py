@@ -185,7 +185,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.ground_truth_thumb.setFixedSize(88, 64)
 		self.ground_truth_thumb.setScaledContents(False)
 		self.ground_truth_thumb.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-		self.ground_truth_thumb.setStyleSheet("border: 1px solid #000000; background: transparent;")
+		self.ground_truth_thumb.setStyleSheet("border: 1px solid #283f45; background: transparent;")
 		self.label_ground_truth = QtWidgets.QLabel("Ground truth: not loaded")
 		self.label_ground_truth.setObjectName("hint")
 		self.label_ground_truth.setWordWrap(True)
