@@ -10,6 +10,7 @@ from .model import get_model, run_inference_on_image, MODEL_PATH
 
 from .worker import InferenceWorker
 from .help_window import HelpWindow
+from .settings_window import SettingsWindow
 from .theme import LIGHT_THEME, DARK_THEME, get_icon_path
 
 from .statistics_tracker import statistics_tracker
@@ -24,6 +25,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.theme = "light"
 		self.theme_style = 1  # 1 or 2, for icon style
 		self.statistics_window = None
+		self.settings_window = None
 		# PyInstaller missing icon issue
 		# In PyInstaller, data files are unpacked to sys._MEIPASS
 		self.assets_dir = None
@@ -354,6 +356,12 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		act_help = QtGui.QAction("Shortcuts", self)
 		act_help.triggered.connect(self._show_shortcuts)
 		help_menu.addAction(act_help)
+
+		settings_menu = menubar.addMenu("&Settings")
+		act_settings = QtGui.QAction("Open Settings", self)
+		act_settings.setShortcut("Ctrl+Alt+C")
+		act_settings.triggered.connect(self._show_settings)
+		settings_menu.addAction(act_settings)
 	def _build_toolbar(self):
 		tb = QtWidgets.QToolBar("Main")
 		tb.setIconSize(QtCore.QSize(24, 24))
@@ -561,6 +569,13 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._help_window.show()
 		self._help_window.raise_()
 		self._help_window.activateWindow()
+	def _show_settings(self):
+		if self.settings_window is None or not self.settings_window.isVisible():
+			self.settings_window = SettingsWindow(self)
+			self.settings_window.show()
+		else:
+			self.settings_window.raise_()
+			self.settings_window.activateWindow()
 
 def main():
 	app = QtWidgets.QApplication(sys.argv)
