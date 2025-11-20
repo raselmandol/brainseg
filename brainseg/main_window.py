@@ -195,6 +195,15 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.status_label = QtWidgets.QLabel("Ready")
 		self.status_label.setObjectName("hint")
 		v.addWidget(self.status_label)
+
+		# Segmentation progress bar
+		self.segmentation_progress = QtWidgets.QProgressBar()
+		self.segmentation_progress.setRange(0, 100)
+		self.segmentation_progress.setValue(0)
+		self.segmentation_progress.setTextVisible(False)
+		self.segmentation_progress.setFixedHeight(12)
+		self.segmentation_progress.setToolTip("Segmentation progress")
+		v.addWidget(self.segmentation_progress)
 		v.addStretch()
 		panel.setMinimumWidth(240)
 		dock.setWidget(panel)
@@ -419,7 +428,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			QtWidgets.QApplication.processEvents()
 			img_rgb = pil_or_cv_to_rgb_np(fname)
 			self.base_image = img_rgb
-			# Set current_image as adjusted version to be used as model input
+			# Current_image as adjusted version to be used as model input--> progress (working on this)
 			self.current_image = self._get_adjusted_image()
 			self.current_mask = None
 			self.current_highlight = None
@@ -445,6 +454,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			return
 
 		process = psutil.Process()
+		# indeterminate progress while running segmentation
+		if hasattr(self, 'segmentation_progress'):
+			self.segmentation_progress.setRange(0, 0)  # indeterminate
+			QtWidgets.QApplication.processEvents()
 		mem_before = process.memory_info().rss / (1024 * 1024)
 		t0 = time.perf_counter()
 		mask_up, highlighted = run_inference_on_image(self.current_image)
@@ -471,6 +484,12 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			mask_rgb = self.current_mask
 		self.canvas_mask.set_image_np(mask_rgb)
 		self.canvas_high.set_image_np(self.current_highlight)
+		# marking progress complete
+		if hasattr(self, 'segmentation_progress'):
+			self.segmentation_progress.setRange(0, 100)
+			self.segmentation_progress.setValue(100)
+			QtCore.QTimer.singleShot(800, lambda: self.segmentation_progress.setValue(0))
+
 		if quality_record and quality_record.aggregate["dice"] is not None:
 			self.status_label.setText(
 				f"Segmentation done in {latency:.3f}s · Dice {quality_record.aggregate['dice']:.3f}"
@@ -492,6 +511,11 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			mask_rgb = self.current_mask
 		self.canvas_mask.set_image_np(mask_rgb)
 		self.canvas_high.set_image_np(self.current_highlight)
+		# marking progress complete for worker-based inference
+		if hasattr(self, 'segmentation_progress'):
+			self.segmentation_progress.setRange(0, 100)
+			self.segmentation_progress.setValue(100)
+			QtCore.QTimer.singleShot(800, lambda: self.segmentation_progress.setValue(0))
 		self.status_label.setText("Done.")
 	def action_save_mask(self):
 		if self.current_mask is None:
