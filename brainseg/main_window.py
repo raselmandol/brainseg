@@ -419,7 +419,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		h = QtWidgets.QHBoxLayout(container)
 		h.setContentsMargins(0, 0, 0, 0)
 		h.addStretch()
-		self.footer_label = QtWidgets.QLabel("Made by Md. Rasel Mandol — Smart Systems & Connectivity Lab, NIT Meghalaya")
+		self.footer_label = QtWidgets.QLabel("Developed by Md. Rasel Mandol — Smart Systems & Connectivity Lab, NIT Meghalaya")
 		self.footer_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 		h.addWidget(self.footer_label)
 		h.addStretch()
