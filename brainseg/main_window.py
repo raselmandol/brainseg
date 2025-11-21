@@ -249,6 +249,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.brightness_label.setText(str(self.brightness_value))
 		self.current_image = self._get_adjusted_image()
 		self._refresh_original_display()
+		if self.settings_window is not None:
+			self.settings_window.update_brightness_display(self.brightness_value)
 
 	def _on_contrast_changed(self, value: int):
 		self.contrast_value = int(value)
@@ -256,6 +258,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.contrast_label.setText(str(self.contrast_value))
 		self.current_image = self._get_adjusted_image()
 		self._refresh_original_display()
+		if self.settings_window is not None:
+			self.settings_window.update_contrast_display(self.contrast_value)
 	def action_select_model(self):
 		from .model import set_model_path, MODEL_PATH
 		fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Model File", os.getcwd(), "Model Files (*.pth)")
@@ -570,12 +574,13 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._help_window.raise_()
 		self._help_window.activateWindow()
 	def _show_settings(self):
-		if self.settings_window is None or not self.settings_window.isVisible():
+		if self.settings_window is None:
 			self.settings_window = SettingsWindow(self)
-			self.settings_window.show()
 		else:
-			self.settings_window.raise_()
-			self.settings_window.activateWindow()
+			self.settings_window.sync_from_main()
+		self.settings_window.show()
+		self.settings_window.raise_()
+		self.settings_window.activateWindow()
 
 def main():
 	app = QtWidgets.QApplication(sys.argv)
