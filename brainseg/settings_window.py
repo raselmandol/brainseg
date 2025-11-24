@@ -1,4 +1,4 @@
-from PyQt6 import QtWidgets, QtCore
+from PyQt6 import QtWidgets, QtCore, QtGui
 
 
 class SettingsWindow(QtWidgets.QDialog):
@@ -13,6 +13,34 @@ class SettingsWindow(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(16)
+
+        theme_box = QtWidgets.QGroupBox("Theme & Appearance")
+        theme_layout = QtWidgets.QVBoxLayout(theme_box)
+        theme_layout.setSpacing(10)
+
+        self.theme_light_radio = QtWidgets.QRadioButton("Light theme")
+        self.theme_dark_radio = QtWidgets.QRadioButton("Dark theme")
+        self.theme_button_group = QtWidgets.QButtonGroup(self)
+        self.theme_button_group.addButton(self.theme_light_radio)
+        self.theme_button_group.addButton(self.theme_dark_radio)
+        self.theme_light_radio.toggled.connect(lambda checked: checked and self._on_theme_selected("light"))
+        self.theme_dark_radio.toggled.connect(lambda checked: checked and self._on_theme_selected("dark"))
+        radio_row = QtWidgets.QHBoxLayout()
+        radio_row.addWidget(self.theme_light_radio)
+        radio_row.addWidget(self.theme_dark_radio)
+        radio_row.addStretch()
+        theme_layout.addLayout(radio_row)
+
+        accent_row = QtWidgets.QHBoxLayout()
+        accent_label = QtWidgets.QLabel("Accent color:")
+        self.accent_combo = QtWidgets.QComboBox()
+        self.accent_combo.addItems(["Azure", "Emerald", "Amber", "Rose"])
+        self.accent_combo.currentTextChanged.connect(self._on_accent_changed)
+        accent_row.addWidget(accent_label)
+        accent_row.addWidget(self.accent_combo, 1)
+        theme_layout.addLayout(accent_row)
+
+        layout.addWidget(theme_box)
 
         adjustments_box = QtWidgets.QGroupBox("Image Adjustments")
         form = QtWidgets.QFormLayout(adjustments_box)
@@ -69,6 +97,12 @@ class SettingsWindow(QtWidgets.QDialog):
             self._update_slider(self.brightness_slider, self.brightness_value_label, mw.brightness_value)
         if hasattr(mw, 'contrast_value'):
             self._update_slider(self.contrast_slider, self.contrast_value_label, mw.contrast_value)
+        if hasattr(mw, 'theme'):
+            self.update_theme_display(mw.theme)
+        if hasattr(mw, 'accent_name'):
+            self.update_accent_display(mw.accent_name)
+        if hasattr(mw, 'accent_color'):
+            self.apply_accent(mw.accent_color, mw.theme if hasattr(mw, 'theme') else 'light')
 
     def _update_slider(self, slider, label, value):
         block = slider.blockSignals(True)
@@ -105,3 +139,43 @@ class SettingsWindow(QtWidgets.QDialog):
 
     def update_contrast_display(self, value):
         self._update_slider(self.contrast_slider, self.contrast_value_label, value)
+
+    def update_theme_display(self, theme_name):
+        block_light = self.theme_light_radio.blockSignals(True)
+        block_dark = self.theme_dark_radio.blockSignals(True)
+        if theme_name == "dark":
+            self.theme_dark_radio.setChecked(True)
+        else:
+            self.theme_light_radio.setChecked(True)
+        self.theme_light_radio.blockSignals(block_light)
+        self.theme_dark_radio.blockSignals(block_dark)
+
+    def update_accent_display(self, accent_name):
+        block = self.accent_combo.blockSignals(True)
+        index = self.accent_combo.findText(accent_name)
+        if index >= 0:
+            self.accent_combo.setCurrentIndex(index)
+        self.accent_combo.blockSignals(block)
+
+    def apply_accent(self, accent_hex, theme):
+        groove = "#3f454f" if theme == "dark" else "#d6dbe3"
+        qcolor = QtGui.QColor(accent_hex)
+        darker = qcolor.darker(120).name()
+        style = (
+            f"QSlider::groove:horizontal {{ height: 6px; border-radius: 3px; background: {groove}; }}"
+            f"QSlider::handle:horizontal {{ background: {accent_hex}; border: 1px solid {darker}; width: 14px; margin: -4px 0; border-radius: 7px; }}"
+        )
+        self.brightness_slider.setStyleSheet(style)
+        self.contrast_slider.setStyleSheet(style)
+
+    def _on_theme_selected(self, theme):
+        mw = self.main_window
+        if mw is None:
+            return
+        mw.set_theme(theme)
+
+    def _on_accent_changed(self, accent_name):
+        mw = self.main_window
+        if mw is None:
+            return
+        mw.set_accent(accent_name)
