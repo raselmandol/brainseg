@@ -16,6 +16,13 @@ from .theme import LIGHT_THEME, DARK_THEME, get_icon_path
 from .statistics_tracker import statistics_tracker
 from .statistics_window import StatisticsWindow
 
+ACCENT_COLORS = {
+	"Azure": "#1a73e8",
+	"Emerald": "#2ecc71",
+	"Amber": "#f4b400",
+	"Rose": "#ff4d6d",
+}
+
 
 class SegmentationApp(QtWidgets.QMainWindow):
 	def __init__(self):
@@ -26,6 +33,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.theme_style = 1  # 1 or 2, for icon style
 		self.statistics_window = None
 		self.settings_window = None
+		self.accent_name = "Azure"
+		self.accent_color = ACCENT_COLORS[self.accent_name]
 		# PyInstaller missing icon issue
 		# In PyInstaller, data files are unpacked to sys._MEIPASS
 		self.assets_dir = None
@@ -83,6 +92,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._build_menubar()
 		self._build_toolbar()
 		self._build_footer()
+		self.set_theme(self.theme)
+		self.set_accent(self.accent_name)
 
 	def show_statistics_window(self):
 		if self.statistics_window is None or not self.statistics_window.isVisible():
@@ -206,6 +217,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.segmentation_progress.setFixedHeight(12)
 		self.segmentation_progress.setToolTip("Segmentation progress")
 		v.addWidget(self.segmentation_progress)
+		self._apply_accent_palette()
 		v.addStretch()
 		panel.setMinimumWidth(240)
 		dock.setWidget(panel)
@@ -399,16 +411,62 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		tb.addSeparator()
 		tb.addAction(self.theme_action)
 	def _toggle_theme(self):
-		if self.theme == "light":
-			self.theme = "dark"
-			self.setStyleSheet(DARK_THEME)
-		else:
-			self.theme = "light"
-			self.setStyleSheet(LIGHT_THEME)
-		# Always updating the icon to match the theme (reverse --> white/night)
+		new_theme = "dark" if self.theme == "light" else "light"
+		self.set_theme(new_theme)
+
+	def set_theme(self, theme_name: str):
+		if theme_name not in ("light", "dark"):
+			return
+		self.theme = theme_name
+		self.setStyleSheet(LIGHT_THEME if theme_name == "light" else DARK_THEME)
 		if hasattr(self, 'theme_action'):
 			self.theme_action.setIcon(self._get_theme_icon())
 		self._update_footer_label_style()
+		self._apply_accent_palette()
+		if self.settings_window is not None:
+			self.settings_window.update_theme_display(theme_name)
+			self.settings_window.apply_accent(self.accent_color, self.theme)
+
+	def set_accent(self, accent_name: str):
+		if accent_name not in ACCENT_COLORS:
+			accent_name = "Azure"
+		self.accent_name = accent_name
+		self.accent_color = ACCENT_COLORS[accent_name]
+		self._apply_accent_palette()
+		if self.settings_window is not None:
+			self.settings_window.update_accent_display(accent_name)
+
+	def _apply_accent_palette(self):
+		app = QtWidgets.QApplication.instance()
+		if app:
+			palette = app.palette()
+			palette.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor(self.accent_color))
+			palette.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor(self.accent_color))
+			palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, QtGui.QColor("#ffffff"))
+			app.setPalette(palette)
+		bar = getattr(self, 'segmentation_progress', None)
+		if bar is not None:
+			track = "rgba(255, 255, 255, 0.12)" if self.theme == "dark" else "#f3f4f6"
+			border = "#444a57" if self.theme == "dark" else "#d0d0d0"
+			bar.setStyleSheet(
+				f"QProgressBar {{ border: 1px solid {border}; border-radius: 4px; background: {track}; padding: 0 2px; }}"
+				f"QProgressBar::chunk {{ background-color: {self.accent_color}; border-radius: 4px; }}"
+			)
+		self._style_slider(self.brightness_slider)
+		self._style_slider(self.contrast_slider)
+		if self.settings_window is not None:
+			self.settings_window.apply_accent(self.accent_color, self.theme)
+
+	def _style_slider(self, slider):
+		if slider is None:
+			return
+		groove = "#3f454f" if self.theme == "dark" else "#d6dbe3"
+		qcolor = QtGui.QColor(self.accent_color)
+		darker = qcolor.darker(120).name()
+		slider.setStyleSheet(
+			f"QSlider::groove:horizontal {{ height: 6px; border-radius: 3px; background: {groove}; }}"
+			f"QSlider::handle:horizontal {{ background: {self.accent_color}; border: 1px solid {darker}; width: 14px; margin: -4px 0; border-radius: 7px; }}"
+		)
 
 	def _update_footer_label_style(self):
 		if not hasattr(self, 'footer_label') or self.footer_label is None:
