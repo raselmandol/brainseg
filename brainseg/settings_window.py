@@ -40,6 +40,26 @@ class SettingsWindow(QtWidgets.QDialog):
         accent_row.addWidget(self.accent_combo, 1)
         theme_layout.addLayout(accent_row)
 
+        color_row = QtWidgets.QHBoxLayout()
+        color_row.setSpacing(10)
+        color_row.addWidget(QtWidgets.QLabel("Custom color:"))
+        self.theme_color_preview = QtWidgets.QLabel()
+        self.theme_color_preview.setFixedSize(28, 28)
+        self.theme_color_preview.setFrameShape(QtWidgets.QFrame.Shape.Box)
+        self.theme_color_preview.setStyleSheet("background: transparent; border: 1px dashed #888888;")
+        color_row.addWidget(self.theme_color_preview)
+        self.theme_color_value = QtWidgets.QLabel("Automatic")
+        self.theme_color_value.setObjectName("hint")
+        color_row.addWidget(self.theme_color_value)
+        color_row.addStretch()
+        self.color_pick_btn = QtWidgets.QPushButton("Choose…")
+        self.color_pick_btn.clicked.connect(self._choose_theme_color)
+        color_row.addWidget(self.color_pick_btn)
+        self.color_reset_btn = QtWidgets.QPushButton("Reset")
+        self.color_reset_btn.clicked.connect(self._reset_theme_color)
+        color_row.addWidget(self.color_reset_btn)
+        theme_layout.addLayout(color_row)
+
         layout.addWidget(theme_box)
 
         adjustments_box = QtWidgets.QGroupBox("Image Adjustments")
@@ -103,6 +123,8 @@ class SettingsWindow(QtWidgets.QDialog):
             self.update_accent_display(mw.accent_name)
         if hasattr(mw, 'accent_color'):
             self.apply_accent(mw.accent_color, mw.theme if hasattr(mw, 'theme') else 'light')
+        if hasattr(mw, 'theme_color'):
+            self.update_theme_color_display(mw.theme_color)
 
     def _update_slider(self, slider, label, value):
         block = slider.blockSignals(True)
@@ -168,6 +190,14 @@ class SettingsWindow(QtWidgets.QDialog):
         self.brightness_slider.setStyleSheet(style)
         self.contrast_slider.setStyleSheet(style)
 
+    def update_theme_color_display(self, color_hex):
+        if color_hex:
+            self.theme_color_preview.setStyleSheet(f"background: {color_hex}; border: 1px solid #444444;")
+            self.theme_color_value.setText(color_hex.upper())
+        else:
+            self.theme_color_preview.setStyleSheet("background: transparent; border: 1px dashed #888888;")
+            self.theme_color_value.setText("Automatic")
+
     def _on_theme_selected(self, theme):
         mw = self.main_window
         if mw is None:
@@ -179,3 +209,21 @@ class SettingsWindow(QtWidgets.QDialog):
         if mw is None:
             return
         mw.set_accent(accent_name)
+
+    def _choose_theme_color(self):
+        mw = self.main_window
+        if mw is None:
+            return
+        initial = QtGui.QColor(mw.theme_color if getattr(mw, 'theme_color', None) else ("#1a73e8" if mw.theme == "light" else "#1b1b1b"))
+        color = QtWidgets.QColorDialog.getColor(initial, self, "Select Application Color")
+        if color.isValid():
+            hex_color = color.name()
+            mw.set_theme_color(hex_color)
+            self.update_theme_color_display(hex_color)
+
+    def _reset_theme_color(self):
+        mw = self.main_window
+        if mw is None:
+            return
+        mw.set_theme_color(None)
+        self.update_theme_color_display(None)
