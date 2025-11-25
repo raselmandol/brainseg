@@ -4,6 +4,7 @@ import os
 import sys
 import psutil, time
 import numpy as np
+from typing import Optional
 from .canvas import ImageCanvas
 from .image_utils import pil_or_cv_to_rgb_np, numpy_to_qpixmap
 from .model import get_model, run_inference_on_image, MODEL_PATH
@@ -35,6 +36,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.settings_window = None
 		self.accent_name = "Azure"
 		self.accent_color = ACCENT_COLORS[self.accent_name]
+		self.theme_color = None
+		self._base_theme_stylesheet = LIGHT_THEME
 		# PyInstaller missing icon issue
 		# In PyInstaller, data files are unpacked to sys._MEIPASS
 		self.assets_dir = None
@@ -418,7 +421,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		if theme_name not in ("light", "dark"):
 			return
 		self.theme = theme_name
-		self.setStyleSheet(LIGHT_THEME if theme_name == "light" else DARK_THEME)
+		self._base_theme_stylesheet = LIGHT_THEME if theme_name == "light" else DARK_THEME
+		self._apply_theme_stylesheet()
 		if hasattr(self, 'theme_action'):
 			self.theme_action.setIcon(self._get_theme_icon())
 		self._update_footer_label_style()
@@ -426,6 +430,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		if self.settings_window is not None:
 			self.settings_window.update_theme_display(theme_name)
 			self.settings_window.apply_accent(self.accent_color, self.theme)
+			self.settings_window.update_theme_color_display(self.theme_color)
 
 	def set_accent(self, accent_name: str):
 		if accent_name not in ACCENT_COLORS:
@@ -435,6 +440,64 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._apply_accent_palette()
 		if self.settings_window is not None:
 			self.settings_window.update_accent_display(accent_name)
+
+	def set_theme_color(self, color_hex: Optional[str]):
+		if color_hex:
+			if not isinstance(color_hex, str) or not color_hex.startswith("#") or len(color_hex) != 7:
+				return
+			self.theme_color = color_hex.lower()
+		else:
+			self.theme_color = None
+		self._apply_theme_stylesheet()
+		self._apply_accent_palette()
+		if self.settings_window is not None:
+			self.settings_window.update_theme_color_display(self.theme_color)
+
+	def _apply_theme_stylesheet(self):
+		stylesheet = getattr(self, '_base_theme_stylesheet', LIGHT_THEME)
+		if self.theme_color:
+			text_color = self._ideal_text_color(self.theme_color)
+			panel = self.theme_color
+			dock = self._shade_color(self.theme_color, 0.94)
+			title_bg = self._shade_color(self.theme_color, 0.9)
+			button_bg = self._shade_color(self.theme_color, 0.92)
+			button_hover = self._shade_color(self.theme_color, 1.05)
+			button_border = self._shade_color(self.theme_color, 0.78)
+			hint_color = self._shade_color(text_color, 1.35 if text_color == "#111111" else 0.7)
+			stylesheet += f"""
+QMainWindow, QWidget {{
+	background-color: {panel};
+	color: {text_color};
+}}
+QDockWidget {{
+	background-color: {dock};
+}}
+QDockWidget::title {{
+	background-color: {title_bg};
+	color: {text_color};
+}}
+QPushButton {{
+	background-color: {button_bg};
+	color: {text_color};
+	border: 1px solid {button_border};
+}}
+QPushButton:hover {{
+	background-color: {button_hover};
+	border-color: {button_border};
+}}
+QLabel#hint {{
+	color: {hint_color};
+}}
+QToolBar {{
+	background-color: {panel};
+	border-bottom: 1px solid {button_border};
+}}
+QStatusBar {{
+	background-color: {panel};
+	border-top: 1px solid {button_border};
+}}
+"""
+		self.setStyleSheet(stylesheet)
 
 	def _apply_accent_palette(self):
 		app = QtWidgets.QApplication.instance()
@@ -467,6 +530,27 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			f"QSlider::groove:horizontal {{ height: 6px; border-radius: 3px; background: {groove}; }}"
 			f"QSlider::handle:horizontal {{ background: {self.accent_color}; border: 1px solid {darker}; width: 14px; margin: -4px 0; border-radius: 7px; }}"
 		)
+
+	def _ideal_text_color(self, hex_color: str) -> str:
+		r, g, b = self._hex_to_rgb(hex_color)
+		luminance = (0.299 * r) + (0.587 * g) + (0.114 * b)
+		return "#111111" if luminance > 186 else "#f5f5f5"
+
+	def _shade_color(self, hex_color: str, factor: float) -> str:
+		r, g, b = self._hex_to_rgb(hex_color)
+		r = self._clamp(int(r * factor))
+		g = self._clamp(int(g * factor))
+		b = self._clamp(int(b * factor))
+		return f"#{r:02x}{g:02x}{b:02x}"
+
+	@staticmethod
+	def _hex_to_rgb(hex_color: str):
+		hex_color = hex_color.lstrip('#')
+		return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+	@staticmethod
+	def _clamp(value: int, minimum: int = 0, maximum: int = 255) -> int:
+		return max(minimum, min(maximum, value))
 
 	def _update_footer_label_style(self):
 		if not hasattr(self, 'footer_label') or self.footer_label is None:
