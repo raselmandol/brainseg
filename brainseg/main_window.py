@@ -294,9 +294,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		except Exception as exc:
 			# Showing a dialog with the detailed error message
 			tb = traceback.format_exc()
-			print(tb)
 			QtWidgets.QMessageBox.critical(self, "Model Load Error",
-				f"Failed to load the selected model file:\n\n{exc}\n\nSee console for full traceback.")
+				f"Failed to load the selected model file:\n\n{exc}\n\nTraceback:\n{tb}")
 			self.status_label.setText("Model load failed. See dialog for details.")
 	def action_load_ground_truth(self):
 		file_filter = "Masks (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.npy)"
@@ -639,9 +638,8 @@ QStatusBar {{
 				self.segmentation_progress.setRange(0, 100)
 				self.segmentation_progress.setValue(0)
 			tb = traceback.format_exc()
-			print(tb)
 			QtWidgets.QMessageBox.critical(self, "Segmentation Error",
-				f"An error occurred while running segmentation:\n\n{exc}\n\nSee console for full traceback.")
+				f"An error occurred while running segmentation:\n\n{exc}\n\nTraceback:\n{tb}")
 			self.status_label.setText("Segmentation failed. See dialog for details.")
 			return
 		mem_after = process.memory_info().rss / (1024 * 1024)
