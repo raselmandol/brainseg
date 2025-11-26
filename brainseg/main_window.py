@@ -2,6 +2,7 @@ import cv2
 from PyQt6 import QtCore, QtGui, QtWidgets
 import os
 import sys
+import traceback
 import psutil, time
 import numpy as np
 from typing import Optional
@@ -276,13 +277,27 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		if self.settings_window is not None:
 			self.settings_window.update_contrast_display(self.contrast_value)
 	def action_select_model(self):
-		from .model import set_model_path, MODEL_PATH
+		from .model import load_model, set_model_path, _model_singleton
 		fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Model File", os.getcwd(), "Model Files (*.pth)")
-		if fname:
+		if not fname:
+			self.status_label.setText("Model selection cancelled.")
+			return
+		# Try to validate the selected .pth immediately and show clear errors instead of crashing. (-->error handling)
+		try:
+			self.status_label.setText("Validating model file...")
+			QtWidgets.QApplication.processEvents()
+			model = load_model(fname)
+			# Store into singleton so subsequent calls reuse the loaded model
+			_model_singleton["model"] = model
 			set_model_path(fname)
 			self.status_label.setText(f"Model selected: {os.path.basename(fname)}")
-		else:
-			self.status_label.setText("Model selection cancelled.")
+		except Exception as exc:
+			# Showing a dialog with the detailed error message
+			tb = traceback.format_exc()
+			print(tb)
+			QtWidgets.QMessageBox.critical(self, "Model Load Error",
+				f"Failed to load the selected model file:\n\n{exc}\n\nSee console for full traceback.")
+			self.status_label.setText("Model load failed. See dialog for details.")
 	def action_load_ground_truth(self):
 		file_filter = "Masks (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.npy)"
 		start_dir = os.path.dirname(self.ground_truth_path) if self.ground_truth_path else (
@@ -614,8 +629,21 @@ QStatusBar {{
 			QtWidgets.QApplication.processEvents()
 		mem_before = process.memory_info().rss / (1024 * 1024)
 		t0 = time.perf_counter()
-		mask_up, highlighted = run_inference_on_image(self.current_image)
-		t1 = time.perf_counter()
+		try:
+			mask_up, highlighted = run_inference_on_image(self.current_image)
+			t1 = time.perf_counter()
+		except Exception as exc:
+			# Ensure progress bar returns to normal and display the error details.
+			t1 = time.perf_counter()
+			if hasattr(self, 'segmentation_progress'):
+				self.segmentation_progress.setRange(0, 100)
+				self.segmentation_progress.setValue(0)
+			tb = traceback.format_exc()
+			print(tb)
+			QtWidgets.QMessageBox.critical(self, "Segmentation Error",
+				f"An error occurred while running segmentation:\n\n{exc}\n\nSee console for full traceback.")
+			self.status_label.setText("Segmentation failed. See dialog for details.")
+			return
 		mem_after = process.memory_info().rss / (1024 * 1024)
 		latency = t1 - t0
 		memory_peak = max(mem_before, mem_after)
