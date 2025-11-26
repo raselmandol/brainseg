@@ -6,6 +6,7 @@ def set_model_path(path: str):
 import os
 import torch
 import segmentation_models_pytorch as smp
+import traceback
 from scipy.ndimage import binary_dilation
 import numpy as np
 import cv2
@@ -24,8 +25,19 @@ def load_model(path: str):
 	)
 	if not os.path.exists(path):
 		raise FileNotFoundError(f"Model file not found: {path}")
-	state = torch.load(path, map_location=DEVICE)
-	model.load_state_dict(state)
+	try:
+		state = torch.load(path, map_location=DEVICE)
+	except Exception as exc:
+		raise RuntimeError(f"Failed to load model file '{path}': {exc}") from exc
+	try:
+		model.load_state_dict(state)
+	except Exception as exc:
+		# Provide helpful details about why the state dict failed to load.
+		tb = traceback.format_exc()
+		raise RuntimeError(
+			f"State dictionary incompatible with expected model architecture.\n" 
+			f"File: {path}\nError: {exc}\n\nTraceback:\n{tb}"
+		) from exc
 	model.to(DEVICE)
 	model.eval()
 	return model
