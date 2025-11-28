@@ -1,3 +1,4 @@
+[![Latest Release](https://img.shields.io/github/v/release/raselmandol/brainseg?label=Release&logo=github)](https://github.com/raselmandol/brainseg/releases/latest)
 [![Issues](https://img.shields.io/github/issues/raselmandol/brainseg?logo=github)](https://github.com/raselmandol/brainseg/issues)
 [![License](https://img.shields.io/github/license/raselmandol/brainseg?color=yellow)](https://github.com/raselmandol/brainseg/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
