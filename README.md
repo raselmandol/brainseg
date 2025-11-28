@@ -8,8 +8,6 @@
 
 **brainseg** is a PyQt6 desktop application for brain MRI abnormality segmentation. It has a friendly multi-view interface with a PyTorch UNet backend, making it easy to inspect images, run inference with custom `.pth` models, compare against ground truth, and review statistics in one place.
 
----
-
 > README file update is in progress. 
 
 ---
@@ -92,12 +90,12 @@ python app.py
 
 ## Using the App
 
-1. **Open Image** - load an MRI slice (`.png`, `.jpg`, `.tif`, `.bmp`). The original view updates immediately, honoring current brightness/contrast settings.
-2. **Adjust Brightness/Contrast** –- use the sliders on the left dock; zoom/pan state stays intact.
-3. **Load Ground Truth (optional)** -- import a mask (`.png`, `.tif`). A thumbnail appears under the filename label.
-4. **Select Model File** -- pick a segmentation checkpoint (`.pth`). The app validates the file right away and reports issues in a modal dialog if the architecture is incompatible.
-5. **Run Segmentation** -- click *Run Segmentation* or press `Ctrl+Alt+R`. The progress bar indicates inference status, and statistics are recorded automatically.
-6. **Save Results** -- export the mask or highlighted overlay using the corresponding buttons or File menu actions.
+1. **Open Image** – load an MRI slice (`.png`, `.jpg`, `.tif`, `.bmp`). The original view updates immediately, honoring current brightness/contrast settings.
+2. **Adjust Brightness/Contrast** – use the sliders on the left dock; zoom/pan state stays intact.
+3. **Load Ground Truth (optional)** – import a mask (`.png`, `.tif`). A thumbnail appears under the filename label.
+4. **Select Model File** – pick a segmentation checkpoint (`.pth`). The app validates the file right away and reports issues in a modal dialog if the architecture is incompatible.
+5. **Run Segmentation** – click *Run Segmentation* or press `Ctrl+Alt+R`. The progress bar indicates inference status, and statistics are recorded automatically.
+6. **Save Results** – export the mask or highlighted overlay using the corresponding buttons or File menu actions.
 
 ---
 
@@ -144,10 +142,10 @@ python -m py_compile brainseg\model.py brainseg\main_window.py
 
 ## To-do
 
-- [] Persist user preferences (theme, accent, last model path) via `QSettings`.
-- [] Allow background model validation to keep the UI responsive with >1 GB checkpoints.
-- [] Add CLI hooks or REST mode for batch inference.
-- [] Extend statistics window with export-to-CSV and per-run notes.
+- [ ] Persist user preferences (theme, accent, last model path) via `QSettings`.
+- [ ] Allow background model validation to keep the UI responsive with >1 GB checkpoints.
+- [ ] Add CLI hooks or REST mode for batch inference.
+- [ ] Extend statistics window with export-to-CSV and per-run notes.
 
 ---
 
