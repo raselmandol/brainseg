@@ -162,4 +162,4 @@ This project is released under the [MIT License](LICENSE).
 
 ---
 
-**Maintainer:** Md. Rasel Mandol -- Smart Systems & Connectivity Lab, NIT Meghalaya
+**Maintainer:** Md. Rasel Mandol (Smart Systems & Connectivity Lab, NIT Meghalaya)
