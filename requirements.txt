@@ -8,3 +8,4 @@ scipy
 matplotlib
 psutil
 pyinstaller
+onnxruntime==1.16.3
