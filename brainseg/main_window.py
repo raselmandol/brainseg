@@ -13,6 +13,7 @@ from .model import get_model, run_inference_on_image, MODEL_PATH
 from .worker import InferenceWorker
 from .help_window import HelpWindow
 from .settings_window import SettingsWindow
+from .intensity_palette import IntensityPaletteDialog, CurveEditor
 from .theme import LIGHT_THEME, DARK_THEME, get_icon_path
 
 from .statistics_tracker import statistics_tracker
@@ -24,6 +25,10 @@ ACCENT_COLORS = {
 	"Amber": "#f4b400",
 	"Rose": "#ff4d6d",
 }
+
+MEDSAM_REPO_ID = "Xenova/medsam-vit-base"
+MEDSAM_ENCODER_FILENAME = "onnx/vision_encoder.onnx"
+MEDSAM_DECODER_FILENAME = "onnx/prompt_encoder_mask_decoder.onnx"
 
 
 class SegmentationApp(QtWidgets.QMainWindow):
@@ -78,6 +83,14 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		# Brightness adjustment state (-100..100)
 		self.brightness_value = 0
 		self.contrast_value = 0
+		# Intensity / Window-Level parameters (for medical imaging)
+		self.wl_center = 128
+		self.wl_width = 256
+		self.gamma = 1.0
+		self.colormap = "Gray"
+		self.apply_wl_to_model = False
+		self.curve_points = [(0.0, 0.0), (1.0, 1.0)]
+		self.intensity_enabled = False
 		self.canvas_orig = ImageCanvas("Original")
 		self.canvas_mask = ImageCanvas("Segmented Mask")
 		self.canvas_high = ImageCanvas("Highlighted Region")
@@ -248,22 +261,87 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			return None
 		return self._apply_image_adjustments(self.base_image)
 
+	def _apply_intensity_transform(self, img: Optional[np.ndarray], params: Optional[dict] = None) -> Optional[np.ndarray]:
+		"""Apply window/level, gamma, curve, and colormap for display."""
+		if img is None:
+			return None
+		img_u8 = img.astype(np.uint8)
+		try:
+			gray = cv2.cvtColor(img_u8, cv2.COLOR_RGB2GRAY)
+		except Exception:
+			gray = img_u8[..., 0]
+		state = {
+			"center": self.wl_center,
+			"width": self.wl_width,
+			"gamma": self.gamma,
+			"colormap": self.colormap,
+			"curve_points": self.curve_points,
+			"enabled": self.intensity_enabled,
+		}
+		if params:
+			state.update({k: v for k, v in params.items() if v is not None})
+		if not state.get("enabled", False):
+			return img
+		c = float(state.get("center", 128))
+		w = float(max(1.0, state.get("width", 256)))
+		low = c - (w / 2.0)
+		high = c + (w / 2.0)
+		norm = (gray.astype(np.float32) - low) / (high - low)
+		norm = np.clip(norm, 0.0, 1.0)
+		mapped = (norm * 255.0).astype(np.float32)
+		gamma_value = state.get("gamma", 1.0)
+		if gamma_value is None or gamma_value <= 0:
+			gamma_value = 1.0
+		mapped = 255.0 * np.power(mapped / 255.0, 1.0 / float(gamma_value))
+		mapped_u8 = np.clip(mapped, 0, 255).astype(np.uint8)
+		curve_points = state.get("curve_points")
+		if curve_points:
+			try:
+				lut = CurveEditor.build_lut(curve_points)
+				mapped_u8 = lut[mapped_u8]
+			except Exception:
+				pass
+		colormap = state.get("colormap", "Gray") or "Gray"
+		if colormap == 'Gray':
+			rgb = np.stack([mapped_u8] * 3, axis=-1)
+		elif colormap == 'Jet':
+			rgb = cv2.applyColorMap(mapped_u8, cv2.COLORMAP_JET)
+			rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+		elif colormap == 'Hot':
+			rgb = cv2.applyColorMap(mapped_u8, cv2.COLORMAP_HOT)
+			rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+		else:
+			rgb = np.stack([mapped_u8] * 3, axis=-1)
+		return rgb
+
 	def _refresh_original_display(self):
 		"""Refresh the Original view according to current brightness."""
 		if self.base_image is None:
 			self.canvas_orig.clear_image()
 			return
 		adjusted = self._get_adjusted_image()
+		# apply intensity transform for display (window/level/gamma/colormap)
+		display_img = self._apply_intensity_transform(adjusted)
 		if self.canvas_orig.has_image():
-			self.canvas_orig.update_image_np(adjusted)
+			self.canvas_orig.update_image_np(display_img)
 		else:
-			self.canvas_orig.set_image_np(adjusted)
+			self.canvas_orig.set_image_np(display_img)
+
+	def render_intensity_preview(self, params: Optional[dict] = None) -> Optional[np.ndarray]:
+		adjusted = self._get_adjusted_image()
+		if adjusted is None:
+			return None
+		return self._apply_intensity_transform(adjusted, params=params)
 
 	def _on_brightness_changed(self, value: int):
 		self.brightness_value = int(value)
 		if hasattr(self, 'brightness_label'):
 			self.brightness_label.setText(str(self.brightness_value))
-		self.current_image = self._get_adjusted_image()
+		adjusted = self._get_adjusted_image()
+		if self.apply_wl_to_model and self.intensity_enabled:
+			self.current_image = self._apply_intensity_transform(adjusted)
+		else:
+			self.current_image = adjusted
 		self._refresh_original_display()
 		if self.settings_window is not None:
 			self.settings_window.update_brightness_display(self.brightness_value)
@@ -272,7 +350,11 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.contrast_value = int(value)
 		if hasattr(self, 'contrast_label'):
 			self.contrast_label.setText(str(self.contrast_value))
-		self.current_image = self._get_adjusted_image()
+		adjusted = self._get_adjusted_image()
+		if self.apply_wl_to_model and self.intensity_enabled:
+			self.current_image = self._apply_intensity_transform(adjusted)
+		else:
+			self.current_image = adjusted
 		self._refresh_original_display()
 		if self.settings_window is not None:
 			self.settings_window.update_contrast_display(self.contrast_value)
@@ -297,6 +379,107 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			QtWidgets.QMessageBox.critical(self, "Model Load Error",
 				f"Failed to load the selected model file:\n\n{exc}\n\nTraceback:\n{tb}")
 			self.status_label.setText("Model load failed. See dialog for details.")
+
+
+	def set_intensity_params(self, center: int, width: int, gamma: float, colormap: str, apply_to_model: bool, curve_points=None, enabled=True):
+		self.wl_center = int(center)
+		self.wl_width = int(width)
+		self.gamma = float(gamma)
+		self.colormap = colormap
+		self.apply_wl_to_model = bool(apply_to_model)
+		self.intensity_enabled = bool(enabled)
+		if curve_points is not None:
+			self.curve_points = self._sanitize_curve_points(curve_points)
+		adjusted = self._get_adjusted_image()
+		if self.apply_wl_to_model and self.intensity_enabled:
+			self.current_image = self._apply_intensity_transform(adjusted)
+		else:
+			self.current_image = adjusted
+		self._refresh_original_display()
+		self._sync_intensity_summary()
+
+	def _sanitize_curve_points(self, points):
+		if not points:
+			return [(0.0, 0.0), (1.0, 1.0)]
+		sanitized = []
+		for pair in points:
+			try:
+				x_val, y_val = pair
+			except (TypeError, ValueError):
+				continue
+			try:
+				x_clamped = max(0.0, min(1.0, float(x_val)))
+				y_clamped = max(0.0, min(1.0, float(y_val)))
+			except (TypeError, ValueError):
+				continue
+			sanitized.append((x_clamped, y_clamped))
+		if len(sanitized) < 2:
+			return [(0.0, 0.0), (1.0, 1.0)]
+		sanitized.sort(key=lambda p: p[0])
+		sanitized[0] = (0.0, sanitized[0][1])
+		sanitized[-1] = (1.0, sanitized[-1][1])
+		return sanitized
+
+	def _sync_intensity_summary(self):
+		if self.settings_window is None:
+			return
+		self.settings_window.update_intensity_summary(
+			self.wl_center,
+			self.wl_width,
+			self.gamma,
+			self.colormap,
+			self.apply_wl_to_model,
+			self.intensity_enabled,
+		)
+
+	def open_intensity_palette(self):
+		dialog = IntensityPaletteDialog(self)
+		if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted or not dialog.result_state:
+			return
+		state = dialog.result_state
+		self.set_intensity_params(
+			state.get("center", self.wl_center),
+			state.get("width", self.wl_width),
+			state.get("gamma", self.gamma),
+			state.get("colormap", self.colormap),
+			state.get("apply_to_model", self.apply_wl_to_model),
+			curve_points=state.get("curve_points", self.curve_points),
+			enabled=state.get("enabled", self.intensity_enabled),
+		)
+
+	def _download_medsam_models(self):
+		"""Download Medical SAM ONNX encoder+decoder from Hugging Face and load them."""
+		try:
+			from huggingface_hub import hf_hub_download
+		except Exception as exc:
+			QtWidgets.QMessageBox.critical(self, "Dependency Missing", f"huggingface_hub is required to download models: {exc}")
+			return
+		cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'brainseg', 'models')
+		os.makedirs(cache_dir, exist_ok=True)
+		try:
+			enc_path = hf_hub_download(MEDSAM_REPO_ID, MEDSAM_ENCODER_FILENAME, cache_dir=cache_dir)
+			dec_path = hf_hub_download(MEDSAM_REPO_ID, MEDSAM_DECODER_FILENAME, cache_dir=cache_dir)
+		except Exception as exc:
+			QtWidgets.QMessageBox.critical(self, "Download Failed", f"Failed to download Medical SAM models: {exc}")
+			return
+		# Try to create sessions and register them
+		try:
+			enc_sess = self._create_onnx_session(enc_path)
+			dec_sess = self._create_onnx_session(dec_path)
+		except Exception as exc:
+			QtWidgets.QMessageBox.critical(self, "Load Failed", f"Downloaded models could not be loaded: {exc}")
+			return
+		self.onnx_encoder_session = enc_sess
+		self.onnx_encoder_input = enc_sess.get_inputs()[0].name if enc_sess.get_inputs() else None
+		self.onnx_encoder_outputs = [o.name for o in enc_sess.get_outputs()]
+		self.onnx_encoder_path = enc_path
+		self.onnx_decoder_session = dec_sess
+		self.onnx_decoder_input_names = [i.name for i in dec_sess.get_inputs()]
+		self.onnx_decoder_output_names = [o.name for o in dec_sess.get_outputs()]
+		self.onnx_decoder_path = dec_path
+		self.chk_onnx.setChecked(True)
+		self._update_onnx_status_labels()
+		QtWidgets.QMessageBox.information(self, "Medical SAM", f"Medical SAM encoder+decoder downloaded and loaded.")
 	def action_load_ground_truth(self):
 		file_filter = "Masks (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.npy)"
 		start_dir = os.path.dirname(self.ground_truth_path) if self.ground_truth_path else (
@@ -596,8 +779,11 @@ QStatusBar {{
 			QtWidgets.QApplication.processEvents()
 			img_rgb = pil_or_cv_to_rgb_np(fname)
 			self.base_image = img_rgb
-			# Current_image as adjusted version to be used as model input--> progress (working on this)
-			self.current_image = self._get_adjusted_image()
+			adjusted = self._get_adjusted_image()
+			if self.apply_wl_to_model and self.intensity_enabled:
+				self.current_image = self._apply_intensity_transform(adjusted)
+			else:
+				self.current_image = adjusted
 			self.current_mask = None
 			self.current_highlight = None
 			self.current_path = fname
