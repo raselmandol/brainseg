@@ -80,8 +80,10 @@ class CurveEditor(QtWidgets.QWidget):
         step_x = rect.width() / 4
         step_y = rect.height() / 4
         for i in range(1, 4):
-            painter.drawLine(rect.left() + i * step_x, rect.top(), rect.left() + i * step_x, rect.bottom())
-            painter.drawLine(rect.left(), rect.top() + i * step_y, rect.right(), rect.top() + i * step_y)
+            x = int(round(rect.left() + i * step_x))
+            y = int(round(rect.top() + i * step_y))
+            painter.drawLine(x, rect.top(), x, rect.bottom())
+            painter.drawLine(rect.left(), y, rect.right(), y)
 
     def _draw_curve(self, painter: QtGui.QPainter, rect: QtCore.QRect) -> None:
         if len(self._points) < 2:
@@ -201,6 +203,9 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         layout.setSpacing(16)
 
         controls = QtWidgets.QVBoxLayout()
+        self.enable_checkbox = QtWidgets.QCheckBox("Enable palette adjustments")
+        self.enable_checkbox.stateChanged.connect(lambda _: self._schedule_preview())
+        controls.addWidget(self.enable_checkbox)
         form = QtWidgets.QFormLayout()
         form.setLabelAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
         form.setFormAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
@@ -255,7 +260,7 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         self.preview_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet("border: 1px solid #28313f; background: #0b0c10;")
         preview_col.addWidget(self.preview_label)
-        self.preview_status = QtWidgets.QLabel("Live preview updates as you tweak controls.")
+        self.preview_status = QtWidgets.QLabel("Enable palette to preview changes.")
         self.preview_status.setObjectName("hint")
         preview_col.addWidget(self.preview_status)
         preview_col.addStretch()
@@ -311,6 +316,7 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         self.gamma_slider.setValue(100)
         self.cmap_combo.setCurrentText("Gray")
         self.apply_checkbox.setChecked(False)
+        self.enable_checkbox.setChecked(False)
         self.curve_editor.set_points([(0.0, 0.0), (1.0, 1.0)])
         self._update_preview()
 
@@ -321,6 +327,7 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
             "gamma": getattr(self.main_window, "gamma", 1.0),
             "colormap": getattr(self.main_window, "colormap", "Gray"),
             "apply_to_model": getattr(self.main_window, "apply_wl_to_model", False),
+            "enabled": getattr(self.main_window, "intensity_enabled", False),
             "curve_points": getattr(self.main_window, "curve_points", [(0.0, 0.0), (1.0, 1.0)]),
         }
         self.center_slider.setValue(int(state["center"]))
@@ -328,6 +335,7 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         self.gamma_slider.setValue(int(float(state["gamma"]) * 100))
         self.cmap_combo.setCurrentText(state["colormap"])
         self.apply_checkbox.setChecked(bool(state["apply_to_model"]))
+        self.enable_checkbox.setChecked(bool(state["enabled"]))
         self.curve_editor.set_points(state["curve_points"])
         self._on_value_changed(self.center_value, self.center_slider.value())
         self._on_value_changed(self.width_value, self.width_slider.value())
@@ -340,6 +348,7 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
             "gamma": float(self.gamma_slider.value()) / 100.0,
             "colormap": self.cmap_combo.currentText(),
             "apply_to_model": bool(self.apply_checkbox.isChecked()),
+            "enabled": bool(self.enable_checkbox.isChecked()),
             "curve_points": self.curve_editor.points(),
         }
 
@@ -353,16 +362,25 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         if preview_np is None:
             self.preview_label.clear()
             self.preview_label.setText("Open an image to preview intensity changes.")
+            if state.get("enabled", False):
+                self.preview_status.setText("Load an image to preview intensity changes.")
+            else:
+                self.preview_status.setText("Palette disabled — showing original image.")
             return
         pixmap = numpy_to_qpixmap(preview_np)
         if pixmap is None:
             self.preview_label.clear()
             self.preview_label.setText("Preview unavailable.")
+            self.preview_status.setText("Preview unavailable.")
             return
         self.preview_label.clear()
         scaled = pixmap.scaled(self.preview_label.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatio,
                                QtCore.Qt.TransformationMode.SmoothTransformation)
         self.preview_label.setPixmap(scaled)
+        if state.get("enabled", False):
+            self.preview_status.setText("Live preview updates as you tweak controls.")
+        else:
+            self.preview_status.setText("Palette disabled — showing original image.")
 
     def accept(self) -> None:
         self.result_state = self._collect_state()
