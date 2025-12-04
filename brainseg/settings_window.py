@@ -76,6 +76,29 @@ class SettingsWindow(QtWidgets.QDialog):
         form.addRow("Contrast", self._wrap_slider(self.contrast_slider, self.contrast_value_label))
 
         layout.addWidget(adjustments_box)
+
+        intensity_box = QtWidgets.QGroupBox("Intensity Palette")
+        intensity_layout = QtWidgets.QHBoxLayout(intensity_box)
+        intensity_layout.setSpacing(12)
+
+        summary_col = QtWidgets.QVBoxLayout()
+        summary_col.setSpacing(4)
+        self.intensity_summary_label = QtWidgets.QLabel("Palette inactive — original colors")
+        self.intensity_summary_label.setWordWrap(True)
+        self.intensity_summary_label.setObjectName("body")
+        summary_col.addWidget(self.intensity_summary_label)
+        self.intensity_apply_label = QtWidgets.QLabel("Model input: original pixels")
+        self.intensity_apply_label.setObjectName("hint")
+        summary_col.addWidget(self.intensity_apply_label)
+        summary_col.addStretch()
+        intensity_layout.addLayout(summary_col, 1)
+
+        self.intensity_palette_btn = QtWidgets.QPushButton("Open Palette…")
+        self.intensity_palette_btn.setFixedWidth(140)
+        self.intensity_palette_btn.clicked.connect(self._open_intensity_palette)
+        intensity_layout.addWidget(self.intensity_palette_btn, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+
+        layout.addWidget(intensity_box)
         layout.addStretch(1)
 
         close_row = QtWidgets.QHBoxLayout()
@@ -87,6 +110,39 @@ class SettingsWindow(QtWidgets.QDialog):
         layout.addLayout(close_row)
 
         self.sync_from_main()
+
+    def _open_intensity_palette(self):
+        mw = self.main_window
+        if mw is None:
+            return
+        if hasattr(mw, 'open_intensity_palette'):
+            mw.open_intensity_palette()
+
+    def update_intensity_summary(self, center=None, width=None, gamma=None, colormap=None, apply_to_model=None, enabled=None):
+        try:
+            center_val = int(center) if center is not None else 128
+        except (TypeError, ValueError):
+            center_val = 128
+        try:
+            width_val = int(width) if width is not None else 256
+        except (TypeError, ValueError):
+            width_val = 256
+        try:
+            gamma_val = float(gamma) if gamma is not None else 1.0
+        except (TypeError, ValueError):
+            gamma_val = 1.0
+        if not colormap:
+            colormap = "Gray"
+        enabled_flag = bool(enabled) if enabled is not None else False
+        status = "Palette active" if enabled_flag else "Palette inactive"
+        summary = f"{status} · Window {center_val} · Width {width_val} · Gamma {gamma_val:.2f} · {colormap}"
+        self.intensity_summary_label.setText(summary)
+        if apply_to_model is None:
+            apply_to_model = False
+        model_transform = bool(apply_to_model) and enabled_flag
+        self.intensity_apply_label.setText(
+            "Model input: transformed" if model_transform else "Model input: original pixels"
+        )
 
     def _create_slider(self):
         slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
@@ -125,6 +181,14 @@ class SettingsWindow(QtWidgets.QDialog):
             self.apply_accent(mw.accent_color, mw.theme if hasattr(mw, 'theme') else 'light')
         if hasattr(mw, 'theme_color'):
             self.update_theme_color_display(mw.theme_color)
+        self.update_intensity_summary(
+            getattr(mw, 'wl_center', None),
+            getattr(mw, 'wl_width', None),
+            getattr(mw, 'gamma', None),
+            getattr(mw, 'colormap', None),
+            getattr(mw, 'apply_wl_to_model', None),
+            getattr(mw, 'intensity_enabled', None),
+        )
 
     def _update_slider(self, slider, label, value):
         block = slider.blockSignals(True)
@@ -189,6 +253,14 @@ class SettingsWindow(QtWidgets.QDialog):
         )
         self.brightness_slider.setStyleSheet(style)
         self.contrast_slider.setStyleSheet(style)
+        button_color = qcolor.name()
+        button_hover = qcolor.lighter(115).name()
+        button_style = (
+            f"QPushButton {{ background-color: {button_color}; color: white; border: 1px solid {darker};"
+            f" padding: 6px 14px; border-radius: 4px; }}"
+            f"QPushButton:hover {{ background-color: {button_hover}; }}"
+        )
+        self.intensity_palette_btn.setStyleSheet(button_style)
 
     def update_theme_color_display(self, color_hex):
         if color_hex:
