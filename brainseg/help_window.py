@@ -133,6 +133,18 @@ class HelpWindow(QtWidgets.QDialog):
             <li>Press F to fit all views to window</li>
             <li>Press 1 to reset zoom to actual size</li>
         </ul>
+        
+        <h3>Intensity Adjustments (Window / Level, Gamma & Curves)</h3>
+        <p>The application includes a dedicated <b>Intensity Palette</b> for medical window/level, gamma, colormap and tone-curve editing. Open it from <b>Settings -> Intensity Palette -> Open Palette...</b>.</p>
+        <ul>
+            <li><b>Enable palette adjustments:</b> Toggle the palette with the checkbox at the top of the dialog. When disabled the original image colors and intensities remain unchanged (non-destructive).</li>
+            <li><b>Live preview:</b> When the palette is enabled, the preview pane shows the effect of Window/Level, Gamma and any curve edits without committing changes to the main view. Use <b>Update Preview</b> (or wait for live preview to be throttled) to refresh.</li>
+            <li><b>Curve Editor:</b> Add or move points with left-click to shape a tone curve; right-click removes a point. The curve is applied as a lookup table (LUT) on top of window/level and gamma.</li>
+            <li><b>Apply transform to model input:</b> If checked, the transformed pixels will be used as the image sent to the segmentation model. If unchecked (or if the palette is disabled) the original pixels are preserved for model input.</li>
+            <li><b>Apply / Cancel:</b> Click <b>Apply</b> to commit the palette settings (and enable them if checked). Click <b>Cancel</b> to close the dialog and discard preview-only changes.</li>
+            <li><b>Reset:</b> Returns center/width/gamma/curve to defaults.</li>
+        </ul>
+        <p>Notes: the Palette is intentionally non-destructive: image pixels on disk and the main display remain unchanged until you click <b>Apply</b>. Use the model-input checkbox to control whether the model receives the transformed image.</p>
         """
         
         label = QtWidgets.QLabel(usage_html)
