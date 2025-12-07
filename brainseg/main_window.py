@@ -94,6 +94,11 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.canvas_orig = ImageCanvas("Original")
 		self.canvas_mask = ImageCanvas("Segmented Mask")
 		self.canvas_high = ImageCanvas("Highlighted Region")
+		# View background colors (None means default automatic)
+		self.default_view_bg_color = "#2f2f2f"
+		self.view_bg_original = self.default_view_bg_color
+		self.view_bg_mask = self.default_view_bg_color
+		self.view_bg_highlight = self.default_view_bg_color
 		splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
 		splitter.addWidget(self.canvas_orig.container())
 		splitter.addWidget(self.canvas_mask.container())
@@ -419,6 +424,24 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		sanitized[0] = (0.0, sanitized[0][1])
 		sanitized[-1] = (1.0, sanitized[-1][1])
 		return sanitized
+
+	def set_view_background(self, view_key: str, color_hex: str | None):
+		"""Set background color for one of the three views. Pass None to reset to default."""
+		base_color = color_hex or self.default_view_bg_color
+		qcolor = QtGui.QColor(base_color)
+		brush = QtGui.QBrush(qcolor)
+		if view_key == 'original':
+			self.view_bg_original = color_hex or None
+			self.canvas_orig.setBackgroundBrush(brush)
+		elif view_key == 'mask':
+			self.view_bg_mask = color_hex or None
+			self.canvas_mask.setBackgroundBrush(brush)
+		elif view_key == 'highlight':
+			self.view_bg_highlight = color_hex or None
+			self.canvas_high.setBackgroundBrush(brush)
+		# Keep SettingsWindow display in sync
+		if self.settings_window is not None and hasattr(self.settings_window, 'update_view_bg_display'):
+			self.settings_window.update_view_bg_display(view_key, color_hex)
 
 	def _sync_intensity_summary(self):
 		if self.settings_window is None:
