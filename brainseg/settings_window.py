@@ -7,8 +7,10 @@ class SettingsWindow(QtWidgets.QDialog):
         self.main_window = parent
         self.setWindowTitle("Settings")
         self.setModal(False)
-        self.setMinimumSize(420, 320)
+        self.setMinimumSize(460, 360)
         self.setObjectName("SettingsWindow")
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -59,6 +61,18 @@ class SettingsWindow(QtWidgets.QDialog):
         self.color_reset_btn.clicked.connect(self._reset_theme_color)
         color_row.addWidget(self.color_reset_btn)
         theme_layout.addLayout(color_row)
+
+        bg_row = QtWidgets.QHBoxLayout()
+        bg_row.setSpacing(10)
+        bg_row.addWidget(QtWidgets.QLabel("Choose BG colors:"))
+        self.view_bg_summary_label = QtWidgets.QLabel("Original · Mask · Highlight -> Automatic")
+        self.view_bg_summary_label.setWordWrap(True)
+        self.view_bg_summary_label.setObjectName("hint")
+        bg_row.addWidget(self.view_bg_summary_label, 1)
+        self.view_bg_button = QtWidgets.QPushButton("Choose BG Colors…")
+        self.view_bg_button.clicked.connect(self._open_view_bg_dialog)
+        bg_row.addWidget(self.view_bg_button)
+        theme_layout.addLayout(bg_row)
 
         layout.addWidget(theme_box)
 
@@ -117,6 +131,31 @@ class SettingsWindow(QtWidgets.QDialog):
             return
         if hasattr(mw, 'open_intensity_palette'):
             mw.open_intensity_palette()
+
+    def _open_view_bg_dialog(self):
+        mw = self.main_window
+        if mw is None:
+            return
+        dialog = ViewBackgroundDialog(mw, self)
+        dialog.exec()
+        self.update_view_bg_summary()
+
+    def update_view_bg_summary(self):
+        mw = self.main_window
+        if mw is None:
+            self.view_bg_summary_label.setText("No image views available")
+            return
+        def fmt(value):
+            return value.upper() if value else "Automatic"
+        original = fmt(getattr(mw, 'view_bg_original', None))
+        mask = fmt(getattr(mw, 'view_bg_mask', None))
+        highlight = fmt(getattr(mw, 'view_bg_highlight', None))
+        summary = f"Original: {original} · Mask: {mask} · Highlight: {highlight}"
+        self.view_bg_summary_label.setText(summary)
+
+    # Backwards compatibility for older calls
+    def update_view_bg_display(self, *_, **__):  # pragma: no cover
+        self.update_view_bg_summary()
 
     def update_intensity_summary(self, center=None, width=None, gamma=None, colormap=None, apply_to_model=None, enabled=None):
         try:
@@ -181,6 +220,7 @@ class SettingsWindow(QtWidgets.QDialog):
             self.apply_accent(mw.accent_color, mw.theme if hasattr(mw, 'theme') else 'light')
         if hasattr(mw, 'theme_color'):
             self.update_theme_color_display(mw.theme_color)
+        self.update_view_bg_summary()
         self.update_intensity_summary(
             getattr(mw, 'wl_center', None),
             getattr(mw, 'wl_width', None),
@@ -261,6 +301,8 @@ class SettingsWindow(QtWidgets.QDialog):
             f"QPushButton:hover {{ background-color: {button_hover}; }}"
         )
         self.intensity_palette_btn.setStyleSheet(button_style)
+        if hasattr(self, 'view_bg_button'):
+            self.view_bg_button.setStyleSheet(button_style)
 
     def update_theme_color_display(self, color_hex):
         if color_hex:
@@ -299,3 +341,67 @@ class SettingsWindow(QtWidgets.QDialog):
             return
         mw.set_theme_color(None)
         self.update_theme_color_display(None)
+
+
+class ViewBackgroundDialog(QtWidgets.QDialog):
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent or main_window)
+        self.main_window = main_window
+        self.setWindowTitle("View Backgrounds")
+        self.setModal(True)
+        self.setMinimumWidth(420)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        self.rows = {}
+        for label, key in (
+            ("Original View", 'original'),
+            ("Segmented Mask", 'mask'),
+            ("Highlighted View", 'highlight'),
+        ):
+            row = QtWidgets.QHBoxLayout()
+            row.setSpacing(10)
+            name_label = QtWidgets.QLabel(label + ":")
+            name_label.setObjectName("hint")
+            value_label = QtWidgets.QLabel()
+            value_label.setObjectName("body")
+            value_label.setMinimumWidth(120)
+            choose_btn = QtWidgets.QPushButton("Choose…")
+            choose_btn.clicked.connect(lambda _, k=key: self._choose_color(k))
+            reset_btn = QtWidgets.QPushButton("Reset")
+            reset_btn.clicked.connect(lambda _, k=key: self._reset_color(k))
+            row.addWidget(name_label)
+            row.addWidget(value_label, 1)
+            row.addWidget(choose_btn)
+            row.addWidget(reset_btn)
+            layout.addLayout(row)
+            self.rows[key] = value_label
+
+        layout.addStretch(1)
+        close_btn = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Close)
+        close_btn.rejected.connect(self.reject)
+        layout.addWidget(close_btn)
+
+        self._refresh_labels()
+
+    def _refresh_labels(self):
+        def fmt(value):
+            return value.upper() if value else "Automatic"
+        self.rows['original'].setText(fmt(getattr(self.main_window, 'view_bg_original', None)))
+        self.rows['mask'].setText(fmt(getattr(self.main_window, 'view_bg_mask', None)))
+        self.rows['highlight'].setText(fmt(getattr(self.main_window, 'view_bg_highlight', None)))
+
+    def _choose_color(self, view_key: str):
+        default_color = getattr(self.main_window, 'default_view_bg_color', '#2f2f2f')
+        current = getattr(self.main_window, f"view_bg_{view_key}", None)
+        initial = QtGui.QColor(current or default_color)
+        color = QtWidgets.QColorDialog.getColor(initial, self, f"Select background for {view_key}")
+        if color.isValid():
+            self.main_window.set_view_background(view_key, color.name())
+            self._refresh_labels()
+
+    def _reset_color(self, view_key: str):
+        self.main_window.set_view_background(view_key, None)
+        self._refresh_labels()
+
