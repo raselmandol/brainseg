@@ -617,7 +617,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			base_rgb = cv2.cvtColor(base_rgb, cv2.COLOR_GRAY2RGB)
 		base_bgr = cv2.cvtColor(base_rgb, cv2.COLOR_RGB2BGR)
 		overlay = base_bgr.copy()
-		label_positions = []
 		any_poly = False
 		height, width = base_rgb.shape[:2]
 		for label_name, polygons in self.annotation_shapes.items():
@@ -626,9 +625,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 				continue
 			r, g, b = self._hex_to_rgb(color_hex)
 			bgr_color = (b, g, r)
-			text_hex = self._ideal_text_color(color_hex)
-			tr, tg, tb = self._hex_to_rgb(text_hex)
-			text_color = (tb, tg, tr)
 			for shape in polygons:
 				pts = shape.get("points", [])
 				if len(pts) < 3:
@@ -638,25 +634,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 					continue
 				cv2.fillPoly(overlay, [poly], bgr_color)
 				cv2.polylines(overlay, [poly], True, bgr_color, 2, cv2.LINE_AA)
-				centroid = np.mean(poly, axis=0)
-				cx = int(np.clip(round(centroid[0]), 0, width - 1))
-				cy = int(np.clip(round(centroid[1]), 0, height - 1))
-				label_positions.append(((cx, cy), label_name, text_color))
 				any_poly = True
 		if not any_poly:
 			return None
 		blended = cv2.addWeighted(overlay, 0.35, base_bgr, 0.65, 0)
-		for (cx, cy), label_name, text_color in label_positions:
-			cv2.putText(
-				blended,
-				label_name,
-				(cx, cy),
-				cv2.FONT_HERSHEY_SIMPLEX,
-				0.6,
-				text_color,
-				2,
-				cv2.LINE_AA,
-			)
 		return cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
 
 	def _reset_annotations(self, clear_labels: bool = False):
@@ -1106,6 +1087,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.theme_action.setIcon(self._get_theme_icon())
 		self._update_footer_label_style()
 		self._apply_accent_palette()
+		if self.annotation_window is not None:
+			self.annotation_window.apply_theme(theme_name)
 		if self.settings_window is not None:
 			self.settings_window.update_theme_display(theme_name)
 			self.settings_window.apply_accent(self.accent_color, self.theme)
