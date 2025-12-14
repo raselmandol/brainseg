@@ -26,8 +26,8 @@ class AnnotationWindow(QtWidgets.QWidget):
 		splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
 		splitter.setChildrenCollapsible(False)
 
-		labels_group = QtWidgets.QGroupBox("Labels")
-		labels_layout = QtWidgets.QVBoxLayout(labels_group)
+		self.labels_group = QtWidgets.QGroupBox("Labels")
+		labels_layout = QtWidgets.QVBoxLayout(self.labels_group)
 		labels_layout.setSpacing(8)
 		self.annotation_list = QtWidgets.QListWidget()
 		self.annotation_list.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
@@ -41,10 +41,10 @@ class AnnotationWindow(QtWidgets.QWidget):
 		label_btns.addWidget(self.btn_rename_label)
 		label_btns.addWidget(self.btn_remove_label)
 		labels_layout.addLayout(label_btns)
-		splitter.addWidget(labels_group)
+		splitter.addWidget(self.labels_group)
 
-		shapes_group = QtWidgets.QGroupBox("Annotation Shapes")
-		shapes_layout = QtWidgets.QVBoxLayout(shapes_group)
+		self.shapes_group = QtWidgets.QGroupBox("Annotation Shapes")
+		shapes_layout = QtWidgets.QVBoxLayout(self.shapes_group)
 		shapes_layout.setSpacing(8)
 		self.annotation_shape_table = QtWidgets.QTableWidget(0, 2)
 		self.annotation_shape_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
@@ -64,7 +64,7 @@ class AnnotationWindow(QtWidgets.QWidget):
 		shape_btns.addWidget(self.btn_delete_shape)
 		shape_btns.addWidget(self.btn_export_labels)
 		shapes_layout.addLayout(shape_btns)
-		splitter.addWidget(shapes_group)
+		splitter.addWidget(self.shapes_group)
 		splitter.setStretchFactor(0, 1)
 		splitter.setStretchFactor(1, 2)
 		layout.addWidget(splitter, 1)
@@ -75,6 +75,7 @@ class AnnotationWindow(QtWidgets.QWidget):
 		self.annotation_hint.setWordWrap(True)
 		self.annotation_hint.setObjectName("hint")
 		layout.addWidget(self.annotation_hint)
+		self.apply_theme(self.main_window.theme)
 
 	def _register_controls(self):
 		mw = self.main_window
@@ -105,6 +106,17 @@ class AnnotationWindow(QtWidgets.QWidget):
 	def sync_from_main(self):
 		self.main_window._refresh_annotation_list()
 		self.main_window._update_annotation_buttons()
+		self.apply_theme(self.main_window.theme)
+
+	def apply_theme(self, theme: str):
+		border_color = "#111111" if theme == "light" else "#444a57"
+		group_style = (
+			f"QGroupBox {{ border: 1px solid {border_color}; border-radius: 10px; margin-top: 12px; }}"
+			"QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; font-weight: 600; }"
+		)
+		for group in (getattr(self, "labels_group", None), getattr(self, "shapes_group", None)):
+			if group is not None:
+				group.setStyleSheet(group_style)
 
 	def closeEvent(self, event: QtGui.QCloseEvent):
 		if self.main_window.isVisible():
