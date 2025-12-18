@@ -127,7 +127,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._build_left_dock()
 		self._build_menubar()
 		self._build_toolbar()
-		self._build_footer()
+		# self._build_footer()
 		self.set_theme(self.theme)
 		self.set_accent(self.accent_name)
 
@@ -1085,7 +1085,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._apply_theme_stylesheet()
 		if hasattr(self, 'theme_action'):
 			self.theme_action.setIcon(self._get_theme_icon())
-		self._update_footer_label_style()
+		# self._update_footer_label_style()
 		self._apply_accent_palette()
 		if self.annotation_window is not None:
 			self.annotation_window.apply_theme(theme_name)
@@ -1214,25 +1214,25 @@ QStatusBar {{
 	def _clamp(value: int, minimum: int = 0, maximum: int = 255) -> int:
 		return max(minimum, min(maximum, value))
 
-	def _update_footer_label_style(self):
-		if not hasattr(self, 'footer_label') or self.footer_label is None:
-			return
-		if self.theme == "dark":
-			self.footer_label.setStyleSheet("color: #ffffff; font-size: 12px;")
-		else:
-			self.footer_label.setStyleSheet("color: #111111; font-size: 12px;")
-	def _build_footer(self):
-		self.statusBar().setSizeGripEnabled(False)
-		container = QtWidgets.QWidget()
-		h = QtWidgets.QHBoxLayout(container)
-		h.setContentsMargins(0, 0, 0, 0)
-		h.addStretch()
-		self.footer_label = QtWidgets.QLabel("Developed by Md. Rasel Mandol — Smart Systems & Connectivity Lab, NIT Meghalaya")
-		self.footer_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-		h.addWidget(self.footer_label)
-		h.addStretch()
-		self.statusBar().addPermanentWidget(container, 1)
-		self._update_footer_label_style()
+	# def _update_footer_label_style(self):
+	# 	if not hasattr(self, 'footer_label') or self.footer_label is None:
+	# 		return
+	# 	if self.theme == "dark":
+	# 		self.footer_label.setStyleSheet("color: #ffffff; font-size: 12px;")
+	# 	else:
+	# 		self.footer_label.setStyleSheet("color: #111111; font-size: 12px;")
+	# def _build_footer(self):
+	# 	self.statusBar().setSizeGripEnabled(False)
+	# 	container = QtWidgets.QWidget()
+	# 	h = QtWidgets.QHBoxLayout(container)
+	# 	h.setContentsMargins(0, 0, 0, 0)
+	# 	h.addStretch()
+		# self.footer_label = QtWidgets.QLabel("Developed by Md. Rasel Mandol — Smart Systems & Connectivity Lab, NIT Meghalaya")
+		# self.footer_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+		# h.addWidget(self.footer_label)
+		# h.addStretch()
+		# self.statusBar().addPermanentWidget(container, 1)
+		# self._update_footer_label_style()
 	def action_open_image(self):
 		file_filter = "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp)"
 		start_dir = os.path.dirname(self.current_path) if self.current_path else os.getcwd()
