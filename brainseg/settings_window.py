@@ -65,7 +65,7 @@ class SettingsWindow(QtWidgets.QDialog):
         bg_row = QtWidgets.QHBoxLayout()
         bg_row.setSpacing(10)
         bg_row.addWidget(QtWidgets.QLabel("Choose BG colors:"))
-        self.view_bg_summary_label = QtWidgets.QLabel("Original · Mask · Highlight -> Automatic")
+        self.view_bg_summary_label = QtWidgets.QLabel("Original, Mask & Highlight")
         self.view_bg_summary_label.setWordWrap(True)
         self.view_bg_summary_label.setObjectName("hint")
         bg_row.addWidget(self.view_bg_summary_label, 1)
