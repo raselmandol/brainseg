@@ -151,7 +151,7 @@ class SettingsWindow(QtWidgets.QDialog):
         mask = fmt(getattr(mw, 'view_bg_mask', None))
         highlight = fmt(getattr(mw, 'view_bg_highlight', None))
         summary = f"Original: {original} · Mask: {mask} · Highlight: {highlight}"
-        self.view_bg_summary_label.setText(summary)
+        # self.view_bg_summary_label.setText(summary)
 
     # Backwards compatibility for older calls
     def update_view_bg_display(self, *_, **__):  # pragma: no cover
