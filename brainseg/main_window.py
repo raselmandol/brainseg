@@ -1273,6 +1273,8 @@ QStatusBar {{
 		if self.current_image is None:
 			self.status_label.setText("No image loaded.")
 			return
+		if not self._ensure_model_ready():
+			return
 
 		process = psutil.Process()
 		# indeterminate progress while running segmentation
@@ -1350,6 +1352,16 @@ QStatusBar {{
 			self.segmentation_progress.setValue(100)
 			QtCore.QTimer.singleShot(800, lambda: self.segmentation_progress.setValue(0))
 		self.status_label.setText("Done.")
+
+	def _ensure_model_ready(self) -> bool:
+		try:
+			model = get_model()
+			return model is not None
+		except FileNotFoundError:
+			self.status_label.setText("Load a model first.")
+		except Exception as exc:
+			self.status_label.setText(f"Model load failed: {exc}")
+		return False
 	def action_save_mask(self):
 		if self.current_mask is None:
 			self.status_label.setText("No mask to save.")
