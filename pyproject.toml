@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brainseg-ai"
+version = "1.5.1"
+description = "Brain abnormality segmentation application"
+readme = "README.md"
+authors = [{ name = "Md. Rasel Mandol" }]
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "torchvision",
+    "segmentation-models-pytorch",
+    "gradio",
+    "opencv-python",
+    "numpy",
+    "scipy",
+    "psutil",
+    "PyQt6",
+]
+
+[project.scripts]
+brainseg = "brainseg.main:main"
+
+[tool.setuptools.packages.find]
+include = ["brainseg", "brainseg.*"]
