@@ -10,6 +10,7 @@ brain/
 
 brainaseg.egg-info/
 brainseg.egg-info/
+brainseg_ai.egg-info/
 dist/
 build/
 pip-wheel-metadata/
