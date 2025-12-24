@@ -61,6 +61,17 @@
 
 ### Installation
 
+#### PyPI (Recommended)
+
+```powershell
+pip install brainseg-ai
+brainseg
+```
+
+This installs the brainseg-ai package and makes the `brainseg` console entry available system-wide.
+
+#### Clone & Install from Source
+
 ```powershell
 git clone https://github.com/raselmandol/brainseg.git
 cd brainseg
@@ -86,6 +97,7 @@ python app.py
 ```
 
 > Tip: `pip install -e .` adds the `brainseg` console entry point so you can launch the app from anywhere.
+> After a PyPI install (`pip install brainseg-ai`), you can simply run `brainseg` from any shell.
 
 ---
 
