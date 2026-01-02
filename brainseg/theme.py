@@ -2,7 +2,7 @@ from PyQt6 import QtGui
 
 LIGHT_THEME = """
 QMainWindow, QWidget {
-    background: #ffffff;
+    background: #f0f1ec;
     color: #2c3e50;
     font-family: 'Segoe UI', Helvetica, Arial;
     font-size: 14px;
@@ -26,12 +26,12 @@ QPushButton {
 QPushButton:hover { background-color: #e8f0fe; border-color: #b9d0ff; }
 QLabel#hint { color: #666; font-size: 12px; }
 QToolBar {
-    background: #ffffff;
+    background: #f0f1ec;
     border-bottom: 1px solid #e6e6e6;
     spacing: 6px;
 }
 QStatusBar {
-    background: #ffffff;
+    background: #f0f1ec;
     border-top: 1px solid #e6e6e6;
 }
 /* View titles */
