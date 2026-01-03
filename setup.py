@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="brainseg-ai",
-    version="1.5.2",
+    version="1.5.5",
     description="Brain abnormality segmentation application",
     author="Md. Rasel Mandol",
     packages=find_packages(),
