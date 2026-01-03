@@ -24,7 +24,7 @@
 6. [Customization & Settings](#customization--settings)
 7. [Troubleshooting & Notes](#troubleshooting--notes)
 8. [Development Workflow](#development-workflow)
-9. [Roadmap](#roadmap)
+9. [Roadmap](#to-do)
 10. [Contributing](#contributing)
 11. [License](#license)
 
