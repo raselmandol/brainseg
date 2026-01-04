@@ -161,7 +161,9 @@ python -m py_compile brainseg\model.py brainseg\main_window.py
 - [ ] Add CLI hooks or REST mode for batch inference.
 - [ ] Extend statistics window with export-to-CSV and per-run notes.
 - [ ] ONNX Runtime support
-- [ ] Segmentation list
+- [x] Segmentation list
+- [ ] Fetch models from remote sources
+- [ ] Support semantic and instance segmentation (parallel workflows)
 
 ---
 
