@@ -97,6 +97,7 @@ python -m brainseg
 python app.py
 ```
 
+> [!Note]
 > Tip: `pip install -e .` adds the `brainseg` console entry point so you can launch the app from anywhere.
 > After a PyPI install (`pip install brainseg-ai`), you can simply run `brainseg` from any shell.
 
