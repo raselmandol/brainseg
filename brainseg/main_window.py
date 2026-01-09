@@ -117,7 +117,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		splitter.addWidget(self.canvas_orig.container())
 		splitter.addWidget(self.canvas_mask.container())
 		splitter.addWidget(self.canvas_high.container())
-		splitter.setHandleWidth(2)
+		splitter.setHandleWidth(1)
 		splitter.setStyleSheet("QSplitter::handle { background-color: transparent; border: none; margin: 0px; }")
 		splitter.setSizes([1, 1, 1])
 		center = QtWidgets.QWidget()
