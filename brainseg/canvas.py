@@ -30,7 +30,7 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 	annotationCommitted = QtCore.pyqtSignal(str, str, list, bool)
 	annotationEditCanceled = QtCore.pyqtSignal(str, str)
 
-	def __init__(self, title: str, parent=None):
+	def __init__(self, title: str, parent=None, overlay_title: bool = False):
 		super().__init__(parent)
 		self._scene = QtWidgets.QGraphicsScene(self)
 		self.setScene(self._scene)
@@ -49,17 +49,17 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		self._is_space_pressed = False
 		self._zoom = 0
 
+		self._title_overlay = overlay_title
 		self.title_label = QtWidgets.QLabel(self._title)
 		self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 		self.title_label.setObjectName("viewTitle")
 		self.title_label.setStyleSheet("font-weight: 600; font-size: 15px;")
 
 		self.wrapper = QtWidgets.QWidget()
-		v = QtWidgets.QVBoxLayout(self.wrapper)
-		v.setContentsMargins(0, 0, 0, 0)
-		v.setSpacing(8)
-		v.addWidget(self.title_label)
-		v.addWidget(self)
+		if self._title_overlay:
+			self._build_overlay_wrapper()
+		else:
+			self._build_standard_wrapper()
 
 		self._annotation_active = False
 		self._annotation_mode = None
@@ -77,6 +77,40 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 
 	def container(self) -> QtWidgets.QWidget:
 		return self.wrapper
+
+	def _build_standard_wrapper(self):
+		self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+		layout = QtWidgets.QVBoxLayout(self.wrapper)
+		layout.setContentsMargins(0, 0, 0, 0)
+		layout.setSpacing(8)
+		layout.addWidget(self.title_label)
+		layout.addWidget(self)
+
+	def _build_overlay_wrapper(self):
+		self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignTop)
+		self.title_label.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+		overlay_style = self.title_label.styleSheet() + " padding: 4px 10px; background-color: rgba(255, 255, 255, 0.85); color: #1f2933; border-radius: 8px;"
+		self.title_label.setStyleSheet(overlay_style)
+		layout = QtWidgets.QVBoxLayout(self.wrapper)
+		layout.setContentsMargins(0, 0, 0, 0)
+		layout.setSpacing(0)
+		overlay_container = QtWidgets.QWidget()
+		stack = QtWidgets.QStackedLayout(overlay_container)
+		stack.setStackingMode(QtWidgets.QStackedLayout.StackingMode.StackAll)
+		stack.setContentsMargins(0, 0, 0, 0)
+		stack.setSpacing(0)
+		stack.addWidget(self)
+		title_holder = QtWidgets.QWidget()
+		title_holder.setAttribute(QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+		title_layout = QtWidgets.QVBoxLayout(title_holder)
+		title_layout.setContentsMargins(12, 12, 12, 12)
+		title_layout.addWidget(
+			self.title_label,
+			0,
+			QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignTop,
+		)
+		stack.addWidget(title_holder)
+		layout.addWidget(overlay_container)
 
 	def has_image(self) -> bool:
 		return self._pixitem is not None
