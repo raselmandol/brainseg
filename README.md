@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/github/license/raselmandol/brainseg?color=yellow)](https://github.com/raselmandol/brainseg/blob/main/LICENSE)
 [![CI/CD](https://github.com/raselmandol/brainseg/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/raselmandol/brainseg/actions/workflows/ci-cd.yml)
 [![PyPI](https://img.shields.io/pypi/v/brainseg-ai?label=PyPI&logo=pypi&logoColor=white)](https://pypi.org/project/brainseg-ai/)
+![PyPI Downloads](https://img.shields.io/pepy/dt/brainseg-ai)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/Backend-PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![PyQt6](https://img.shields.io/badge/UI-PyQt6-41CD52?logo=Qt&logoColor=white)](https://doc.qt.io/qtforpython/)
