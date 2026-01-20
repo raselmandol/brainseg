@@ -175,10 +175,19 @@ Pull requests and feature suggestions are welcome. Please file an issue describi
 
 ---
 
+## Citing BrainSeg
+
+If this project supports your research or clinical workflow, please cite it using the metadata in [CITATION.cff](CITATION.cff):
+
+> Mandol, Md Rasel. **BrainSeg: Deep Learning-based Brain MRI Segmentation and Annotation.** Version 1.5.5, 3 Jan 2026. MIT License. https://github.com/raselmandol/brainseg
+
+GitHub's "Cite this repository" button also reads the same CFF file, so you can export BibTeX or other formats directly.
+
+---
+
 ## License
 
 This project is released under the [MIT License](LICENSE).
 
----
 
 **Maintainer:** Md. Rasel Mandol (Smart Systems & Connectivity Lab, NIT Meghalaya)
