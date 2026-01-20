@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: "BrainSeg: Deep Learning-based Brain MRI Segmentation and Annotation"
+authors:
+  - family-names: Mandol
+    given-names: Md Rasel
+repository-code: https://github.com/raselmandol/brainseg
+license: MIT
+version: 1.5.5
+date-released: 2026-01-03
+abstract: >
+  BrainSeg is an open-source deep learning-based framework for brain MRI 
+  segmentation, focusing on lightweight architectures, medical image
+  analysis, and deployment on resource-constrained devices. Using
+  BrainSeg-AI, users can perform annotation of medical images to
+  support dataset creation and validation workflows.
