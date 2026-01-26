@@ -95,7 +95,7 @@ pip install -e .
 ```powershell
 python -m brainseg
 # or run the legacy script if you prefer
-python app.py
+python brainseg/main.py
 ```
 
 > [!Note]
