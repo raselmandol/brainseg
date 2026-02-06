@@ -1,5 +1,4 @@
 import cv2
-from PyQt6 import QtCore, QtGui, QtWidgets
 import os
 import sys
 import traceback
@@ -8,19 +7,20 @@ import numpy as np
 import json
 import uuid
 from typing import Optional
+from .model import get_model, run_inference_on_image, MODEL_PATH # torch needed to be installed before importing pyqt6
 from .canvas import ImageCanvas
 from .image_utils import pil_or_cv_to_rgb_np, numpy_to_qpixmap
-from .model import get_model, run_inference_on_image, MODEL_PATH
-
+from PyQt6 import QtCore, QtGui, QtWidgets
 from .worker import InferenceWorker
 from .help_window import HelpWindow
 from .settings_window import SettingsWindow
 from .intensity_palette import IntensityPaletteDialog, CurveEditor
 from .theme import LIGHT_THEME, DARK_THEME, get_icon_path
 from .annotation_window import AnnotationWindow
-
 from .statistics_tracker import statistics_tracker
 from .statistics_window import StatisticsWindow
+# .dll loading issue on Windows when using PyTorch - see
+# https://github.com/pytorch/pytorch/issues/166628#issuecomment-3479375122
 
 ACCENT_COLORS = {
 	"Azure": "#1a73e8",
