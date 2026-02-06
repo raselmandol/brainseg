@@ -9,7 +9,7 @@
 [![PyQt6](https://img.shields.io/badge/UI-PyQt6-41CD52?logo=Qt&logoColor=white)](https://doc.qt.io/qtforpython/)
 
 **brainseg** is a PyQt6 desktop application for brain MRI abnormality segmentation. It has a friendly multi-view interface with a PyTorch UNet backend, making it easy to inspect images, run inference with custom `.pth` models, compare against ground truth, and review statistics in one place.
-![brainseg GUI Preview](https://raw.githubusercontent.com/raselmandol/brainseg/refs/heads/main/screenshots/brainseg151_1.gif)
+![brainseg GUI Preview](https://raw.githubusercontent.com/raselmandol/brainseg/refs/heads/main/screenshots/brainseg151_2.gif)
 
 
 
@@ -18,15 +18,15 @@
 ## Table of Contents
 
 1. [Highlights](#highlights)
-2. [Screenshots](#screenshots)
-3. [Getting Started](#getting-started)
-4. [Using the App](#using-the-app)
-5. [Model Management](#model-management)
-6. [Customization & Settings](#customization--settings)
-7. [Troubleshooting & Notes](#troubleshooting--notes)
-8. [Development Workflow](#development-workflow)
-9. [Roadmap](#to-do)
-10. [Contributing](#contributing)
+2. [Getting Started](#getting-started)
+3. [Using the App](#using-the-app)
+4. [Model Management](#model-management)
+5. [Customization & Settings](#customization--settings)
+6. [Troubleshooting & Notes](#troubleshooting--notes)
+7. [Development Workflow](#development-workflow)
+8. [Roadmap](#to-do)
+9. [Contributing](#contributing)
+10. [Citing BrainSeg](#citing-brainseg)
 11. [License](#license)
 
 ---
@@ -41,15 +41,7 @@
 - **Theme, accent, and custom color palette** so users can adapt the UI to ambient lighting.
 - **Robust error handling** that surfaces detailed model-loading issues via dialogs.
 
----
-
-## Screenshots
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/raselmandol/brainseg/refs/heads/main/screenshots/Screenshot1_120.png" alt="Segmentation workspace" width="800" />
-  <br><br>
-  <img src="https://raw.githubusercontent.com/raselmandol/brainseg/refs/heads/main/screenshots/Screenshot2_120.png" alt="Settings and statistics" width="800" />
-</div>
+Browse the complete gallery in [SCREENSHOTS.md](SCREENSHOTS.md).
 
 ---
 
