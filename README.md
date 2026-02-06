@@ -64,7 +64,7 @@ brainseg
 
 This installs the brainseg-ai package and makes the `brainseg` console entry available system-wide.
 
-> [!Success]
+> [!Note]
 > The previous torch `c10.dll` import error is resolved in the current release, so `pip install brainseg-ai` completes without warnings on supported Python >=3.10 environments.
 
 #### Clone & Install from Source
