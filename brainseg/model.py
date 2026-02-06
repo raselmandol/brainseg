@@ -1,16 +1,32 @@
-def set_model_path(path: str):
-	global MODEL_PATH
-	MODEL_PATH = path
-	_model_singleton["model"] = None
-
 import os
-import torch
+import platform
 import segmentation_models_pytorch as smp
 import traceback
 from scipy.ndimage import binary_dilation
 import numpy as np
 import cv2
 from torchvision import transforms as T
+# .dll loading issue on Windows when using PyTorch - see
+# https://github.com/pytorch/pytorch/issues/166628#issuecomment-3479375122
+
+if platform.system() == "Windows":
+    import ctypes
+    from importlib.util import find_spec
+    try:
+        if (spec := find_spec("torch")) and spec.origin and os.path.exists(
+            dll_path := os.path.join(os.path.dirname(spec.origin), "lib", "c10.dll")
+        ):
+            ctypes.CDLL(os.path.normpath(dll_path))
+    except Exception:
+        pass
+# Strict note: The above code is necessary to ensure that the PyTorch library loads correctly on Windows, especially when using CUDA. It attempts to load the "c10.dll" library, which is a core component of PyTorch, before any other part of the library (torch) is imported. This can help prevent issues related to missing DLLs that can arise when PyTorch is installed in certain ways on Windows.
+# Strict note: import torch before PyQt6
+import torch
+
+def set_model_path(path: str):
+	global MODEL_PATH
+	MODEL_PATH = path
+	_model_singleton["model"] = None
 
 MODEL_PATH = "brain_segmentation_model.pth"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
