@@ -113,6 +113,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.view_bg_original = self.default_view_bg_color
 		self.view_bg_mask = self.default_view_bg_color
 		self.view_bg_highlight = self.default_view_bg_color
+		self._settings = QtCore.QSettings("BrainSeg", "BrainSeg")
+		self._load_user_preferences()
 		left_splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
 		left_splitter.addWidget(self.canvas_orig.container())
 		left_splitter.addWidget(self.canvas_mask.container())
@@ -135,8 +137,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._build_menubar()
 		self._build_toolbar()
 		# self._build_footer()
-		self.set_theme(self.theme)
-		self.set_accent(self.accent_name)
+		self.set_theme(self.theme, persist=False)
+		self.set_accent(self.accent_name, persist=False)
 
 	def show_statistics_window(self):
 		if self.statistics_window is None or not self.statistics_window.isVisible():
@@ -868,7 +870,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		sanitized[-1] = (1.0, sanitized[-1][1])
 		return sanitized
 
-	def set_view_background(self, view_key: str, color_hex: str | None):
+	def set_view_background(self, view_key: str, color_hex: str | None, persist: bool = True):
 		"""Set background color for one of the three views. Pass None to reset to default."""
 		base_color = color_hex or self.default_view_bg_color
 		qcolor = QtGui.QColor(base_color)
@@ -885,6 +887,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		# Keep SettingsWindow display in sync
 		if self.settings_window is not None and hasattr(self.settings_window, 'update_view_bg_display'):
 			self.settings_window.update_view_bg_display(view_key, color_hex)
+		if persist:
+			self._save_user_preferences()
 
 	def _sync_intensity_summary(self):
 		if self.settings_window is None:
@@ -1084,7 +1088,37 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		new_theme = "dark" if self.theme == "light" else "light"
 		self.set_theme(new_theme)
 
-	def set_theme(self, theme_name: str):
+	def _load_user_preferences(self):
+		settings = getattr(self, '_settings', None)
+		if settings is None:
+			return
+		theme = settings.value("appearance/theme", self.theme)
+		if theme in ("light", "dark"):
+			self.theme = theme
+		accent = settings.value("appearance/accent", self.accent_name)
+		if accent in ACCENT_COLORS:
+			self.accent_name = accent
+			self.accent_color = ACCENT_COLORS[accent]
+		theme_color = settings.value("appearance/theme_color", "")
+		self.theme_color = theme_color if theme_color else None
+		for view_key in ("original", "mask", "highlight"):
+			stored = settings.value(f"appearance/view_bg_{view_key}", "")
+			if stored:
+				self.set_view_background(view_key, stored, persist=False)
+
+	def _save_user_preferences(self):
+		settings = getattr(self, '_settings', None)
+		if settings is None:
+			return
+		settings.setValue("appearance/theme", self.theme)
+		settings.setValue("appearance/accent", self.accent_name)
+		settings.setValue("appearance/theme_color", self.theme_color or "")
+		settings.setValue("appearance/view_bg_original", self.view_bg_original or "")
+		settings.setValue("appearance/view_bg_mask", self.view_bg_mask or "")
+		settings.setValue("appearance/view_bg_highlight", self.view_bg_highlight or "")
+		settings.sync()
+
+	def set_theme(self, theme_name: str, persist: bool = True):
 		if theme_name not in ("light", "dark"):
 			return
 		self.theme = theme_name
@@ -1100,8 +1134,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.settings_window.update_theme_display(theme_name)
 			self.settings_window.apply_accent(self.accent_color, self.theme)
 			self.settings_window.update_theme_color_display(self.theme_color)
+		if persist:
+			self._save_user_preferences()
 
-	def set_accent(self, accent_name: str):
+	def set_accent(self, accent_name: str, persist: bool = True):
 		if accent_name not in ACCENT_COLORS:
 			accent_name = "Azure"
 		self.accent_name = accent_name
@@ -1109,8 +1145,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._apply_accent_palette()
 		if self.settings_window is not None:
 			self.settings_window.update_accent_display(accent_name)
+		if persist:
+			self._save_user_preferences()
 
-	def set_theme_color(self, color_hex: Optional[str]):
+	def set_theme_color(self, color_hex: Optional[str], persist: bool = True):
 		if color_hex:
 			if not isinstance(color_hex, str) or not color_hex.startswith("#") or len(color_hex) != 7:
 				return
@@ -1121,6 +1159,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._apply_accent_palette()
 		if self.settings_window is not None:
 			self.settings_window.update_theme_color_display(self.theme_color)
+		if persist:
+			self._save_user_preferences()
 
 	def _apply_theme_stylesheet(self):
 		stylesheet = getattr(self, '_base_theme_stylesheet', LIGHT_THEME)
