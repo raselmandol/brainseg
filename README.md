@@ -9,7 +9,7 @@
 [![PyQt6](https://img.shields.io/badge/UI-PyQt6-41CD52?logo=Qt&logoColor=white)](https://doc.qt.io/qtforpython/)
 
 **brainseg** is a PyQt6 desktop application for brain MRI abnormality segmentation. It has a friendly multi-view interface with a PyTorch UNet backend, making it easy to inspect images, run inference with custom `.pth` models, compare against ground truth, and review statistics in one place.
-![brainseg GUI Preview](https://raw.githubusercontent.com/raselmandol/brainseg/refs/heads/main/screenshots/brainseg151_2.gif)
+![brainseg GUI Preview](https://raw.githubusercontent.com/raselmandol/brainseg/refs/heads/main/screenshots/brainseg151_1.gif)
 
 
 
