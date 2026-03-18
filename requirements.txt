@@ -1,7 +1,6 @@
 torch
 torchvision
 segmentation-models-pytorch
-gradio
 opencv-python==4.8.1.78
 numpy>=1.26.0,<2
 scipy
