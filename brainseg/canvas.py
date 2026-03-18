@@ -54,12 +54,18 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 		self.title_label.setObjectName("viewTitle")
 		self.title_label.setStyleSheet("font-weight: 600; font-size: 15px;")
+		self.title_label.setWordWrap(True)
+		self._scene_overlay_text = None
 
 		self.wrapper = QtWidgets.QWidget()
+		self._overlay_lines: list[str] = []
 		if self._title_overlay:
+			self.title_label.setVisible(False)
 			self._build_overlay_wrapper()
+			self._init_scene_overlay()
 		else:
 			self._build_standard_wrapper()
+		self._update_title_label()
 
 		self._annotation_active = False
 		self._annotation_mode = None
@@ -77,6 +83,96 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 
 	def container(self) -> QtWidgets.QWidget:
 		return self.wrapper
+
+	def _update_title_label(self):
+		if self._title_overlay:
+			text = self._title
+			self.title_label.setVisible(False)
+		else:
+			text = self._title
+		self.title_label.setText(text)
+
+	def set_overlay_lines(self, lines: list[str] | None):
+		if not self._title_overlay:
+			return
+		if not lines:
+			self._overlay_lines = []
+		else:
+			cleaned = []
+			for entry in lines:
+				if entry is None:
+					continue
+				text = str(entry).strip()
+				if text:
+					cleaned.append(text)
+			self._overlay_lines = cleaned
+		self._update_scene_overlay()
+
+	def _init_scene_overlay(self):
+		if not self._title_overlay or self._scene is None:
+			return
+		self._scene_overlay_text = QtWidgets.QGraphicsTextItem()
+		self._scene_overlay_text.setZValue(10)
+		self._scene_overlay_text.setVisible(False)
+		self._scene_overlay_text.setFlag(
+			QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
+		)
+		self._scene.addItem(self._scene_overlay_text)
+
+	def _update_scene_overlay(self):
+		if not self._title_overlay:
+			return
+		if self._scene_overlay_text is None:
+			self._init_scene_overlay()
+		if self._scene_overlay_text is None:
+			return
+		try:
+			_ = self._scene_overlay_text.isVisible()
+		except RuntimeError:
+			self._init_scene_overlay()
+			if self._scene_overlay_text is None:
+				return
+		if not self._overlay_lines:
+			self._scene_overlay_text.setVisible(False)
+			return
+		body = self._title + "<br>" + "<br>".join(self._overlay_lines)
+		html = (
+			"<div style='"
+			"background-color: rgba(255,255,255,225);"
+			"color: #ff4d88;"
+			"font-weight: 600;"
+			"font-size: 13px;"
+			"padding: 6px 8px;"
+			"border-radius: 8px;"
+			"'>"
+			+ body
+			+ "</div>"
+		)
+		self._scene_overlay_text.setHtml(html)
+		self._scene_overlay_text.setVisible(True)
+		self._reposition_scene_overlay()
+
+	def _reposition_scene_overlay(self):
+		if not self._scene_overlay_text:
+			return
+		try:
+			visible = self._scene_overlay_text.isVisible()
+		except RuntimeError:
+			self._init_scene_overlay()
+			return
+		if not visible:
+			return
+		top_left = self.mapToScene(self.viewport().rect().topLeft())
+		margin = 10
+		self._scene_overlay_text.setPos(top_left.x() + margin, top_left.y() + margin)
+
+	def resizeEvent(self, event: QtGui.QResizeEvent):
+		super().resizeEvent(event)
+		self._reposition_scene_overlay()
+
+	def scrollContentsBy(self, dx: int, dy: int):
+		super().scrollContentsBy(dx, dy)
+		self._reposition_scene_overlay()
 
 	def _build_standard_wrapper(self):
 		self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
@@ -130,6 +226,7 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 	def set_pixmap(self, pixmap: QtGui.QPixmap):
 		self._current_pixmap = pixmap
 		self._scene.clear()
+		self._scene_overlay_text = None
 		self._annotation_temp_path = None
 		self._clear_handles()
 		self._annotation_items = {}
@@ -140,7 +237,11 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		self._pixitem = self._scene.addPixmap(pixmap)
 		self._scene.setSceneRect(self._pixitem.boundingRect())
 		self._zoom = 0
+		if self._title_overlay:
+			self._init_scene_overlay()
+			self._update_scene_overlay()
 		self.fit_to_window()
+		self._reposition_scene_overlay()
 
 	def update_pixmap(self, pixmap: QtGui.QPixmap):
 		if self._pixitem is None:
@@ -153,6 +254,7 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		self._scene.setSceneRect(self._pixitem.boundingRect())
 		self.setTransform(current_transform, False)
 		self.centerOn(view_center)
+		self._reposition_scene_overlay()
 
 	def clear_image(self):
 		self._finish_annotation_state()
@@ -162,12 +264,14 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		self._zoom = 0
 		self._annotation_temp_path = None
 		self._annotation_items = {}
+		self._scene_overlay_text = None
 
 	def fit_to_window(self):
 		if self._pixitem is None:
 			return
 		self.fitInView(self._pixitem, QtCore.Qt.AspectRatioMode.KeepAspectRatio)
 		self._zoom = 0
+		self._reposition_scene_overlay()
 
 	def zoom_1x(self):
 		if self._pixitem is None:
@@ -175,6 +279,7 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 		self.resetTransform()
 		self.centerOn(self._pixitem)
 		self._zoom = 0
+		self._reposition_scene_overlay()
 
 	def wheelEvent(self, event: QtGui.QWheelEvent):
 		if self._pixitem is None:
@@ -186,6 +291,7 @@ class ImageCanvas(QtWidgets.QGraphicsView):
 			self._zoom = -10
 			return
 		self.scale(factor, factor)
+		self._reposition_scene_overlay()
 
 	def keyPressEvent(self, event: QtGui.QKeyEvent):
 		key = event.key()
