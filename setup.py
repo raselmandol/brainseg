@@ -11,7 +11,6 @@ setup(
         "torchvision",
         "segmentation-models-pytorch",
         "matplotlib",
-        "gradio",
         "opencv-python",
         "numpy",
         "scipy",
