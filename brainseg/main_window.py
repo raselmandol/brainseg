@@ -890,6 +890,45 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		if persist:
 			self._save_user_preferences()
 
+	def _update_mask_measurements(self, mask: Optional[np.ndarray]):
+		if mask is None:
+			self.canvas_mask.set_overlay_lines([])
+			return
+		if mask.ndim == 3:
+			mask_gray = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+		else:
+			mask_gray = mask
+		mask_bin = (mask_gray > 0).astype(np.uint8)
+		if not np.any(mask_bin):
+			self.canvas_mask.set_overlay_lines(["No segments"])
+			return
+		num_labels, _, stats, centroids = cv2.connectedComponentsWithStats(mask_bin, connectivity=8)
+		total_area = int(np.count_nonzero(mask_bin))
+		height, width = mask_bin.shape
+		coverage = (total_area / (height * width) * 100.0) if height and width else 0.0
+		regions = []
+		for label_idx in range(1, num_labels):
+			area_px = int(stats[label_idx, cv2.CC_STAT_AREA])
+			if area_px <= 0:
+				continue
+			regions.append({
+				"area": area_px,
+				"w": int(stats[label_idx, cv2.CC_STAT_WIDTH]),
+				"h": int(stats[label_idx, cv2.CC_STAT_HEIGHT]),
+				"cx": float(centroids[label_idx][0]),
+				"cy": float(centroids[label_idx][1]),
+			})
+		regions.sort(key=lambda r: r["area"], reverse=True)
+		lines = [
+			f"Regions: {len(regions)} | Coverage: {coverage:.1f}%",
+			f"Pixels: {total_area:,}",
+		]
+		for idx, region in enumerate(regions[:3]):
+			lines.append(
+				f"#{idx + 1}: {region['area']:,} px @ ({int(round(region['cx']))}, {int(round(region['cy']))}) | {region['w']}x{region['h']}"
+			)
+		self.canvas_mask.set_overlay_lines(lines)
+
 	def _sync_intensity_summary(self):
 		if self.settings_window is None:
 			return
@@ -1311,6 +1350,7 @@ QStatusBar {{
 			self.canvas_orig.clear_image()
 			self._refresh_original_display()
 			self.canvas_mask.clear_image()
+			self._update_mask_measurements(None)
 			self.canvas_high.clear_image()
 			self._update_annotation_buttons()
 			self.status_label.setText("Image loaded. Press Run or Ctrl+R.")
@@ -1365,6 +1405,7 @@ QStatusBar {{
 		else:
 			mask_rgb = self.current_mask
 		self.canvas_mask.set_image_np(mask_rgb)
+		self._update_mask_measurements(self.current_mask)
 		self.canvas_high.set_image_np(self.current_highlight)
 		# marking progress complete
 		if hasattr(self, 'segmentation_progress'):
@@ -1374,7 +1415,7 @@ QStatusBar {{
 
 		if quality_record and quality_record.aggregate["dice"] is not None:
 			self.status_label.setText(
-				f"Segmentation done in {latency:.3f}s · Dice {quality_record.aggregate['dice']:.3f}"
+				f"Segmentation done in {latency:.3f}s | Dice {quality_record.aggregate['dice']:.3f}"
 			)
 		else:
 			self.status_label.setText(f"Segmentation done in {latency:.3f}s")
@@ -1392,6 +1433,7 @@ QStatusBar {{
 		else:
 			mask_rgb = self.current_mask
 		self.canvas_mask.set_image_np(mask_rgb)
+		self._update_mask_measurements(self.current_mask)
 		self.canvas_high.set_image_np(self.current_highlight)
 		# marking progress complete for worker-based inference
 		if hasattr(self, 'segmentation_progress'):
