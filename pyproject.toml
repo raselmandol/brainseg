@@ -19,6 +19,7 @@ dependencies = [
     "scipy",
     "psutil",
     "PyQt6",
+    "nibabel",
 ]
 
 [project.scripts]

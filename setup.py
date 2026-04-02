@@ -15,7 +15,8 @@ setup(
         "numpy",
         "scipy",
         "psutil",
-        "PyQt6"
+        "PyQt6",
+        "nibabel"
     ],
     entry_points={
         "console_scripts": [
