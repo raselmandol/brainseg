@@ -9,7 +9,7 @@ import uuid
 from typing import Optional
 from .model import get_model, run_inference_on_image, MODEL_PATH # torch needed to be installed before importing pyqt6
 from .canvas import ImageCanvas
-from .image_utils import pil_or_cv_to_rgb_np, numpy_to_qpixmap
+from .image_utils import pil_or_cv_to_rgb_np, numpy_to_qpixmap, load_nifti_rgb_np, load_mask_np
 from PyQt6 import QtCore, QtGui, QtWidgets
 from .worker import InferenceWorker
 from .help_window import HelpWindow
@@ -78,6 +78,8 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.current_mask = None
 		self.current_highlight = None
 		self.current_path = None
+		self.current_nifti_slice_index = None
+		self.current_nifti_total_slices = None
 		self.ground_truth_mask = None
 		self.ground_truth_path = None
 		self.annotation_labels = {}
@@ -990,7 +992,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self._update_onnx_status_labels()
 		QtWidgets.QMessageBox.information(self, "Medical SAM", f"Medical SAM encoder+decoder downloaded and loaded.")
 	def action_load_ground_truth(self):
-		file_filter = "Masks (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.npy)"
+		file_filter = "Masks (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.npy *.nii *.nii.gz)"
 		start_dir = os.path.dirname(self.ground_truth_path) if self.ground_truth_path else (
 			os.path.dirname(self.current_path) if self.current_path else os.getcwd()
 		)
@@ -998,24 +1000,23 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		if not fname:
 			return
 		try:
-			if fname.lower().endswith(".npy"):
-				mask = np.load(fname)
-			else:
-				mask = cv2.imread(fname, cv2.IMREAD_UNCHANGED)
-				if mask is None:
-					raise ValueError("Unable to read mask file")
-				if mask.ndim == 3:
-					mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+			preferred_slice = self.current_nifti_slice_index
+			mask, used_slice, total_slices = load_mask_np(fname, preferred_slice=preferred_slice)
 		except Exception as exc:
 			self.status_label.setText(f"Failed to load ground truth: {exc}")
 			return
+		if mask.ndim >= 3:
+			mask = np.asarray(mask[..., 0])
 		if self.base_image is not None and mask.shape[:2] != self.base_image.shape[:2]:
 			h, w = self.base_image.shape[:2]
 			mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
 		mask_bin = (mask > 0).astype(np.uint8)
 		self.ground_truth_mask = mask_bin
 		self.ground_truth_path = fname
-		self.label_ground_truth.setText(f"Ground truth: {os.path.basename(fname)}")
+		gt_name = os.path.basename(fname)
+		if used_slice is not None and total_slices:
+			gt_name += f" (slice {used_slice + 1}/{total_slices})"
+		self.label_ground_truth.setText(f"Ground truth: {gt_name}")
 		# A small thumbnail for the dock
 		try:
 			thumb_rgb = None
@@ -1320,7 +1321,7 @@ QStatusBar {{
 		# self.statusBar().addPermanentWidget(container, 1)
 		# self._update_footer_label_style()
 	def action_open_image(self):
-		file_filter = "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp)"
+		file_filter = "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.nii *.nii.gz)"
 		start_dir = os.path.dirname(self.current_path) if self.current_path else os.getcwd()
 		fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open image", start_dir, file_filter)
 		if not fname:
@@ -1328,7 +1329,16 @@ QStatusBar {{
 		try:
 			self.status_label.setText("Loading image...")
 			QtWidgets.QApplication.processEvents()
-			img_rgb = pil_or_cv_to_rgb_np(fname)
+			used_slice = None
+			total_slices = None
+			if fname.lower().endswith(".nii") or fname.lower().endswith(".nii.gz"):
+				img_rgb, used_slice, total_slices = load_nifti_rgb_np(fname)
+				self.current_nifti_slice_index = used_slice
+				self.current_nifti_total_slices = total_slices
+			else:
+				img_rgb = pil_or_cv_to_rgb_np(fname)
+				self.current_nifti_slice_index = None
+				self.current_nifti_total_slices = None
 			self.base_image = img_rgb
 			adjusted = self._get_adjusted_image()
 			if self.apply_wl_to_model and self.intensity_enabled:
@@ -1341,7 +1351,10 @@ QStatusBar {{
 			self.ground_truth_mask = None
 			self.ground_truth_path = None
 			self._reset_annotations(clear_labels=False)
-			self.label_filename.setText(os.path.basename(fname))
+			display_name = os.path.basename(fname)
+			if used_slice is not None and total_slices:
+				display_name += f" (slice {used_slice + 1}/{total_slices})"
+			self.label_filename.setText(display_name)
 			self.label_ground_truth.setText("Ground truth: not loaded")
 			# Clearing thumbnail when loading a new image
 			self.ground_truth_thumb.clear()
@@ -1353,7 +1366,10 @@ QStatusBar {{
 			self._update_mask_measurements(None)
 			self.canvas_high.clear_image()
 			self._update_annotation_buttons()
-			self.status_label.setText("Image loaded. Press Run or Ctrl+R.")
+			if used_slice is not None and total_slices:
+				self.status_label.setText(f"NIfTI loaded (slice {used_slice + 1}/{total_slices}). Press Run or Ctrl+R.")
+			else:
+				self.status_label.setText("Image loaded. Press Run or Ctrl+R.")
 		except Exception as e:
 			self.status_label.setText(f"Error: {e}")
 	def action_run_segmentation(self):
