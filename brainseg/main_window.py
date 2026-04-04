@@ -4,8 +4,6 @@ import sys
 import traceback
 import psutil, time
 import numpy as np
-import json
-import uuid
 from typing import Optional
 from .model import get_model, run_inference_on_image, MODEL_PATH # torch needed to be installed before importing pyqt6
 from .canvas import ImageCanvas
@@ -15,8 +13,7 @@ from .worker import InferenceWorker
 from .help_window import HelpWindow
 from .settings_window import SettingsWindow
 from .intensity_palette import IntensityPaletteDialog, CurveEditor
-from .theme import LIGHT_THEME, DARK_THEME, get_icon_path
-from .annotation_window import AnnotationWindow
+from .theme import LIGHT_THEME, DARK_THEME
 from .statistics_tracker import statistics_tracker
 from .statistics_window import StatisticsWindow
 # .dll loading issue on Windows when using PyTorch - see
@@ -39,7 +36,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.theme_style = 1  # 1 or 2, for icon style
 		self.statistics_window = None
 		self.settings_window = None
-		self.annotation_window = None
 		self.accent_name = "Azure"
 		self.accent_color = ACCENT_COLORS[self.accent_name]
 		self.theme_color = None
@@ -82,18 +78,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.current_nifti_total_slices = None
 		self.ground_truth_mask = None
 		self.ground_truth_path = None
-		self.annotation_labels = {}
-		self.annotation_shapes = {}
-		self.annotation_list = None
-		self.btn_add_label = None
-		self.btn_remove_label = None
-		self.btn_start_polygon = None
-		self.btn_export_labels = None
-		self.annotation_shape_table = None
-		self.btn_rename_label = None
-		self.btn_edit_shape = None
-		self.btn_delete_shape = None
-		self._pending_edit_backup = None
 		# Brightness adjustment state (-100..100)
 		self.brightness_value = 0
 		self.contrast_value = 0
@@ -108,8 +92,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.canvas_orig = ImageCanvas("Original")
 		self.canvas_mask = ImageCanvas("Segmented Mask", overlay_title=True)
 		self.canvas_high = ImageCanvas("Highlighted Region")
-		self.canvas_orig.annotationCommitted.connect(self._on_annotation_committed)
-		self.canvas_orig.annotationEditCanceled.connect(self._on_annotation_edit_canceled)
 		# View background colors (None means default automatic)
 		self.default_view_bg_color = "#2f2f2f"
 		self.view_bg_original = self.default_view_bg_color
@@ -269,428 +251,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		panel.setMinimumWidth(240)
 		dock.setWidget(panel)
 		self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, dock)
-
-	def _refresh_annotation_list(self, select_name: Optional[str] = None):
-		if self.annotation_list is None:
-			return
-		self.annotation_list.blockSignals(True)
-		self.annotation_list.clear()
-		for label_name, color_hex in self.annotation_labels.items():
-			item = QtWidgets.QListWidgetItem(label_name)
-			item.setData(QtCore.Qt.ItemDataRole.UserRole, label_name)
-			color = QtGui.QColor(color_hex)
-			pix = QtGui.QPixmap(14, 14)
-			pix.fill(color)
-			item.setIcon(QtGui.QIcon(pix))
-			item.setToolTip(color_hex)
-			brush = QtGui.QBrush(color.lighter(160))
-			item.setBackground(brush)
-			self.annotation_list.addItem(item)
-			if select_name and label_name == select_name:
-				self.annotation_list.setCurrentItem(item)
-		self.annotation_list.blockSignals(False)
-		if select_name:
-			for row in range(self.annotation_list.count()):
-				item = self.annotation_list.item(row)
-				if item.data(QtCore.Qt.ItemDataRole.UserRole) == select_name:
-					self.annotation_list.setCurrentItem(item)
-					break
-		self._refresh_shape_table(select_name)
-		self._update_annotation_buttons()
-
-	def _current_label_selection(self) -> Optional[str]:
-		if self.annotation_list is None:
-			return None
-		item = self.annotation_list.currentItem()
-		if not item:
-			return None
-		return item.data(QtCore.Qt.ItemDataRole.UserRole)
-
-	def _current_shape_selection(self) -> Optional[tuple[str, str]]:
-		if self.annotation_shape_table is None:
-			return None
-		row = self.annotation_shape_table.currentRow()
-		if row < 0:
-			return None
-		item = self.annotation_shape_table.item(row, 0)
-		if item is None:
-			return None
-		shape_id = item.data(QtCore.Qt.ItemDataRole.UserRole)
-		label = self._current_label_selection()
-		if not label or not shape_id:
-			return None
-		return (label, shape_id)
-
-	def _refresh_shape_table(self, label_name: Optional[str] = None, select_shape_id: Optional[str] = None):
-		if self.annotation_shape_table is None:
-			return
-		self.annotation_shape_table.blockSignals(True)
-		if label_name is None:
-			label_name = self._current_label_selection()
-		shapes = self.annotation_shapes.get(label_name, []) if label_name else []
-		self.annotation_shape_table.setRowCount(len(shapes))
-		for row, shape in enumerate(shapes):
-			shape_id = shape.get("id")
-			if not shape_id:
-				shape_id = f"{label_name or 'shape'}_{row+1}"
-				shape["id"] = shape_id
-			points = shape.get("points", [])
-			id_item = QtWidgets.QTableWidgetItem(shape_id or "")
-			id_item.setData(QtCore.Qt.ItemDataRole.UserRole, shape_id)
-			id_item.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEnabled)
-			verts_item = QtWidgets.QTableWidgetItem(str(len(points)))
-			verts_item.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEnabled)
-			self.annotation_shape_table.setItem(row, 0, id_item)
-			self.annotation_shape_table.setItem(row, 1, verts_item)
-			if select_shape_id and shape_id == select_shape_id:
-				self.annotation_shape_table.selectRow(row)
-		self.annotation_shape_table.blockSignals(False)
-		self._update_annotation_buttons()
-
-	def _handle_label_selection_change(self):
-		current = self._current_label_selection()
-		self._refresh_shape_table(current)
-		self._update_annotation_buttons()
-
-	def _on_shape_selection_change(self):
-		self._update_annotation_buttons()
-
-	def _add_annotation_label(self):
-		name, ok = QtWidgets.QInputDialog.getText(self, "Add Label", "Label name:")
-		if not ok:
-			return
-		name = name.strip()
-		if not name:
-			return
-		if name in self.annotation_labels:
-			QtWidgets.QMessageBox.warning(self, "Annotations", f"Label '{name}' already exists.")
-			return
-		color = QtWidgets.QColorDialog.getColor(QtGui.QColor(self.accent_color), self, "Choose label color")
-		if not color.isValid():
-			return
-		self.annotation_labels[name] = color.name()
-		self.annotation_shapes[name] = []
-		self._refresh_annotation_list(select_name=name)
-		if hasattr(self, 'status_label') and self.status_label:
-			self.status_label.setText(f"Label '{name}' added. Select it and click Start Polygon to annotate.")
-
-	def _remove_annotation_label(self):
-		if self.annotation_list is None:
-			return
-		item = self.annotation_list.currentItem()
-		if not item:
-			return
-		label_name = item.data(QtCore.Qt.ItemDataRole.UserRole)
-		if not label_name:
-			return
-		self.annotation_labels.pop(label_name, None)
-		self.annotation_shapes.pop(label_name, None)
-		self.canvas_orig.clear_annotations(label_name)
-		self._refresh_annotation_list()
-		if hasattr(self, 'status_label') and self.status_label:
-			self.status_label.setText(f"Label '{label_name}' removed.")
-
-	def _start_polygon_annotation(self):
-		if self.base_image is None:
-			QtWidgets.QMessageBox.information(self, "Annotations", "Load an image before annotating.")
-			return
-		if self.annotation_list is None:
-			return
-		item = self.annotation_list.currentItem()
-		if not item:
-			QtWidgets.QMessageBox.information(self, "Annotations", "Select a label to annotate.")
-			return
-		label_name = item.data(QtCore.Qt.ItemDataRole.UserRole)
-		color_hex = self.annotation_labels.get(label_name)
-		if not color_hex:
-			QtWidgets.QMessageBox.warning(self, "Annotations", "Selected label is not available.")
-			return
-		self.canvas_orig.setFocus(QtCore.Qt.FocusReason.ActiveWindowFocusReason)
-		started = self.canvas_orig.begin_annotation(label_name, color_hex)
-		if not started:
-			QtWidgets.QMessageBox.warning(self, "Annotations", "Unable to start annotation on the current view.")
-			return
-		if hasattr(self, 'status_label') and self.status_label:
-			self.status_label.setText(f"Annotating '{label_name}'. Double-click to finish, Esc to cancel.")
-
-	def _rename_annotation_label(self):
-		label_name = self._current_label_selection()
-		if not label_name:
-			return
-		new_name, ok = QtWidgets.QInputDialog.getText(self, "Rename Label", "New label name:", text=label_name)
-		if not ok:
-			return
-		new_name = new_name.strip()
-		if not new_name or new_name == label_name:
-			return
-		if new_name in self.annotation_labels:
-			QtWidgets.QMessageBox.warning(self, "Annotations", f"Label '{new_name}' already exists.")
-			return
-		color_hex = self.annotation_labels.pop(label_name)
-		self.annotation_labels[new_name] = color_hex
-		self.annotation_shapes[new_name] = self.annotation_shapes.pop(label_name, [])
-		self._rebuild_canvas_annotations()
-		self._refresh_annotation_list(select_name=new_name)
-		if hasattr(self, 'status_label') and self.status_label:
-			self.status_label.setText(f"Label renamed to '{new_name}'.")
-
-	def _edit_annotation_shape(self):
-		selection = self._current_shape_selection()
-		if not selection:
-			return
-		label_name, shape_id = selection
-		shapes = self.annotation_shapes.get(label_name, [])
-		shape = next((s for s in shapes if s.get("id") == shape_id), None)
-		if not shape:
-			return
-		color_hex = self.annotation_labels.get(label_name, self.accent_color)
-		points = shape.get("points", [])
-		self._pending_edit_backup = {
-			"label": label_name,
-			"shape_id": shape_id,
-			"points": [tuple(p) for p in points],
-		}
-		shapes.remove(shape)
-		started = self.canvas_orig.edit_annotation(label_name, color_hex, points, shape_id)
-		if not started:
-			shapes.append(shape)
-			self._pending_edit_backup = None
-			QtWidgets.QMessageBox.warning(self, "Annotations", "Unable to start edit mode for this shape.")
-			return
-		self._refresh_shape_table(label_name)
-		self._update_annotation_buttons()
-		if hasattr(self, 'status_label') and self.status_label:
-			self.status_label.setText(f"Editing shape '{shape_id}' — drag handles, double-click or press Enter to save.")
-
-	def _delete_annotation_shape(self):
-		selection = self._current_shape_selection()
-		if not selection:
-			return
-		label_name, shape_id = selection
-		shapes = self.annotation_shapes.get(label_name, [])
-		idx = next((i for i, s in enumerate(shapes) if s.get("id") == shape_id), None)
-		if idx is None:
-			return
-		shapes.pop(idx)
-		self.canvas_orig.remove_annotation_item(shape_id)
-		if self._pending_edit_backup and self._pending_edit_backup.get("shape_id") == shape_id:
-			self._pending_edit_backup = None
-		self._refresh_shape_table(label_name)
-		self._update_annotation_buttons()
-		if hasattr(self, 'status_label') and self.status_label:
-			self.status_label.setText(f"Deleted shape '{shape_id}'.")
-
-	def _on_annotation_committed(self, label_name: str, shape_id: str, points: list[tuple[float, float]], is_edit: bool):
-		if not label_name or not shape_id or not points:
-			return
-		shapes = self.annotation_shapes.setdefault(label_name, [])
-		if is_edit:
-			updated = False
-			for shape in shapes:
-				if shape.get("id") == shape_id:
-					shape["points"] = points
-					updated = True
-					break
-			if not updated:
-				shapes.append({"id": shape_id, "points": points})
-		else:
-			shapes.append({"id": shape_id, "points": points})
-		if is_edit and self._pending_edit_backup and self._pending_edit_backup.get("shape_id") == shape_id:
-			self._pending_edit_backup = None
-		self._refresh_shape_table(label_name, select_shape_id=shape_id)
-		self._update_annotation_buttons()
-		if hasattr(self, 'status_label') and self.status_label:
-			action = "updated" if is_edit else "saved"
-			self.status_label.setText(f"Annotation {action} for '{label_name}'.")
-
-	def _on_annotation_edit_canceled(self, label_name: str, shape_id: str):
-		if not self._pending_edit_backup:
-			return
-		backup = self._pending_edit_backup
-		if backup.get("label") != label_name or backup.get("shape_id") != shape_id:
-			return
-		points = backup.get("points", [])
-		self.annotation_shapes.setdefault(label_name, []).append({"id": shape_id, "points": points})
-		color_hex = self.annotation_labels.get(label_name, self.accent_color)
-		self.canvas_orig.add_annotation_polygon(label_name, shape_id, points, color_hex)
-		self._pending_edit_backup = None
-		self._refresh_shape_table(label_name, select_shape_id=shape_id)
-		self._update_annotation_buttons()
-		if hasattr(self, 'status_label') and self.status_label:
-			self.status_label.setText("Edit cancelled; original shape restored.")
-
-	def _export_annotations(self):
-		if self.base_image is None:
-			QtWidgets.QMessageBox.information(self, "Annotations", "Load an image before exporting.")
-			return
-		if not self._has_any_annotations():
-			QtWidgets.QMessageBox.information(self, "Annotations", "Create at least one polygon before exporting.")
-			return
-		default_dir = os.path.dirname(self.current_path) if self.current_path else os.getcwd()
-		base = os.path.splitext(os.path.basename(self.current_path or "annotations"))[0]
-		default_name = os.path.join(default_dir, f"{base}_labels.json")
-		fname, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export Annotations", default_name, "JSON Files (*.json)")
-		if not fname:
-			return
-		if not fname.lower().endswith(".json"):
-			fname += ".json"
-		payload = self._build_labelme_payload()
-		try:
-			with open(fname, "w", encoding="utf-8") as handle:
-				json.dump(payload, handle, indent=2)
-		except Exception as exc:
-			QtWidgets.QMessageBox.critical(self, "Export Failed", f"Failed to write annotation file:\n{exc}")
-			return
-		attachments = []
-		warnings = []
-		mask = self._render_annotation_mask()
-		if mask is not None:
-			mask_path = os.path.splitext(fname)[0] + "_mask.png"
-			try:
-				cv2.imwrite(mask_path, cv2.cvtColor(mask, cv2.COLOR_RGB2BGR))
-			except Exception as exc:
-				warnings.append(f"mask export failed: {exc}")
-			else:
-				attachments.append(os.path.basename(mask_path))
-		overlay = self._render_annotation_overlay()
-		if overlay is not None:
-			overlay_path = os.path.splitext(fname)[0] + "_overlay.png"
-			try:
-				cv2.imwrite(overlay_path, cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
-			except Exception as exc:
-				warnings.append(f"overlay export failed: {exc}")
-			else:
-				attachments.append(os.path.basename(overlay_path))
-		status_suffix = ""
-		if attachments:
-			status_suffix += f" (+ {', '.join(attachments)})"
-		if warnings:
-			status_suffix += f" (warnings: {'; '.join(warnings)})"
-		if hasattr(self, 'status_label') and self.status_label:
-			self.status_label.setText(f"Annotations exported: {os.path.basename(fname)}{status_suffix}")
-
-	def _build_labelme_payload(self) -> dict:
-		if self.base_image is None:
-			return {}
-		height, width = self.base_image.shape[:2]
-		shapes = []
-		for label_name, polygons in self.annotation_shapes.items():
-			color_hex = self.annotation_labels.get(label_name, "#ff0000")
-			for shape in polygons:
-				pts = shape.get("points", [])
-				if len(pts) < 3:
-					continue
-				shape_entry = {
-					"label": label_name,
-					"points": [[float(x), float(y)] for (x, y) in pts],
-					"shape_type": "polygon",
-					"fill_color": color_hex,
-					"line_color": color_hex,
-				}
-				shapes.append(shape_entry)
-		payload = {
-			"version": "brainseg-annotations-1.0",
-			"flags": {},
-			"imagePath": os.path.basename(self.current_path) if self.current_path else None,
-			"imageHeight": int(height),
-			"imageWidth": int(width),
-			"shapes": shapes,
-		}
-		return payload
-
-	def _render_annotation_mask(self) -> Optional[np.ndarray]:
-		if self.base_image is None:
-			return None
-		height, width = self.base_image.shape[:2]
-		mask_img = np.zeros((height, width, 3), dtype=np.uint8)
-		any_poly = False
-		for label_name, polygons in self.annotation_shapes.items():
-			color_hex = self.annotation_labels.get(label_name)
-			if not color_hex:
-				continue
-			r, g, b = self._hex_to_rgb(color_hex)
-			for shape in polygons:
-				pts = shape.get("points", [])
-				if len(pts) < 3:
-					continue
-				poly = np.array([(int(round(x)), int(round(y))) for x, y in pts], dtype=np.int32)
-				if poly.size == 0:
-					continue
-				cv2.fillPoly(mask_img, [poly], (r, g, b))
-				any_poly = True
-		return mask_img if any_poly else None
-
-	def _render_annotation_overlay(self) -> Optional[np.ndarray]:
-		if self.base_image is None:
-			return None
-		base_rgb = self.base_image
-		if base_rgb.ndim == 2:
-			base_rgb = cv2.cvtColor(base_rgb, cv2.COLOR_GRAY2RGB)
-		base_bgr = cv2.cvtColor(base_rgb, cv2.COLOR_RGB2BGR)
-		overlay = base_bgr.copy()
-		any_poly = False
-		height, width = base_rgb.shape[:2]
-		for label_name, polygons in self.annotation_shapes.items():
-			color_hex = self.annotation_labels.get(label_name)
-			if not color_hex:
-				continue
-			r, g, b = self._hex_to_rgb(color_hex)
-			bgr_color = (b, g, r)
-			for shape in polygons:
-				pts = shape.get("points", [])
-				if len(pts) < 3:
-					continue
-				poly = np.array([(int(round(x)), int(round(y))) for x, y in pts], dtype=np.int32)
-				if poly.size == 0:
-					continue
-				cv2.fillPoly(overlay, [poly], bgr_color)
-				cv2.polylines(overlay, [poly], True, bgr_color, 2, cv2.LINE_AA)
-				any_poly = True
-		if not any_poly:
-			return None
-		blended = cv2.addWeighted(overlay, 0.35, base_bgr, 0.65, 0)
-		return cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-
-	def _reset_annotations(self, clear_labels: bool = False):
-		self.canvas_orig.clear_annotations()
-		if clear_labels:
-			self.annotation_labels.clear()
-		self.annotation_shapes = {label: [] for label in self.annotation_labels}
-		self._pending_edit_backup = None
-		self._refresh_annotation_list()
-
-	def _rebuild_canvas_annotations(self):
-		self.canvas_orig.clear_annotations()
-		for label_name, shapes in self.annotation_shapes.items():
-			color_hex = self.annotation_labels.get(label_name, self.accent_color)
-			for shape in shapes:
-				points = shape.get("points", [])
-				if len(points) < 3:
-					continue
-				shape_id = shape.get("id") or str(uuid.uuid4())
-				shape["id"] = shape_id
-				self.canvas_orig.add_annotation_polygon(label_name, shape_id, points, color_hex)
-
-	def _update_annotation_buttons(self):
-		label_name = self._current_label_selection()
-		has_label = label_name is not None
-		has_image = self.base_image is not None
-		shape_selection = self._current_shape_selection()
-		if self.btn_remove_label is not None:
-			self.btn_remove_label.setEnabled(has_label)
-		if self.btn_rename_label is not None:
-			self.btn_rename_label.setEnabled(has_label)
-		if self.btn_start_polygon is not None:
-			self.btn_start_polygon.setEnabled(has_label and has_image)
-		if self.btn_edit_shape is not None:
-			self.btn_edit_shape.setEnabled(shape_selection is not None and has_image)
-		if self.btn_delete_shape is not None:
-			self.btn_delete_shape.setEnabled(shape_selection is not None)
-		if self.btn_export_labels is not None:
-			self.btn_export_labels.setEnabled(self._has_any_annotations() and has_image)
-
-	def _has_any_annotations(self) -> bool:
-		return any(len(shapes) > 0 for shapes in self.annotation_shapes.values()) if self.annotation_shapes else False
 
 	def _apply_image_adjustments(self, img_rgb: np.ndarray) -> np.ndarray:
 		"""Apply brightness and contrast adjustments to an RGB uint8 image."""
@@ -1120,10 +680,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.theme_action.triggered.connect(self._toggle_theme)
 		tb.addSeparator()
 		tb.addAction(self.theme_action)
-		self.annotation_panel_action = QtGui.QAction("Annotations", self)
-		self.annotation_panel_action.setToolTip("Open annotation manager")
-		self.annotation_panel_action.triggered.connect(self._show_annotation_window)
-		tb.addAction(self.annotation_panel_action)
+
 	def _toggle_theme(self):
 		new_theme = "dark" if self.theme == "light" else "light"
 		self.set_theme(new_theme)
@@ -1168,8 +725,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.theme_action.setIcon(self._get_theme_icon())
 		# self._update_footer_label_style()
 		self._apply_accent_palette()
-		if self.annotation_window is not None:
-			self.annotation_window.apply_theme(theme_name)
 		if self.settings_window is not None:
 			self.settings_window.update_theme_display(theme_name)
 			self.settings_window.apply_accent(self.accent_color, self.theme)
@@ -1350,7 +905,6 @@ QStatusBar {{
 			self.current_path = fname
 			self.ground_truth_mask = None
 			self.ground_truth_path = None
-			self._reset_annotations(clear_labels=False)
 			display_name = os.path.basename(fname)
 			if used_slice is not None and total_slices:
 				display_name += f" (slice {used_slice + 1}/{total_slices})"
@@ -1365,7 +919,6 @@ QStatusBar {{
 			self.canvas_mask.clear_image()
 			self._update_mask_measurements(None)
 			self.canvas_high.clear_image()
-			self._update_annotation_buttons()
 			if used_slice is not None and total_slices:
 				self.status_label.setText(f"NIfTI loaded (slice {used_slice + 1}/{total_slices}). Press Run or Ctrl+R.")
 			else:
@@ -1520,14 +1073,6 @@ QStatusBar {{
 		self.settings_window.raise_()
 		self.settings_window.activateWindow()
 
-	def _show_annotation_window(self):
-		if self.annotation_window is None:
-			self.annotation_window = AnnotationWindow(self)
-		else:
-			self.annotation_window.sync_from_main()
-		self.annotation_window.show()
-		self.annotation_window.raise_()
-		self.annotation_window.activateWindow()
 
 def main():
 	app = QtWidgets.QApplication(sys.argv)
