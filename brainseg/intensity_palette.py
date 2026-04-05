@@ -22,12 +22,26 @@ class CurveEditor(QtWidgets.QWidget):
         self.setMouseTracking(True)
         self._points: CurvePoints = [(0.0, 0.0), (1.0, 1.0)]
         self._active_index: Optional[int] = None
+        self._bg_color = QtGui.QColor("#101218")
+        self._border_color = QtGui.QColor("#242832")
         self._grid_pen = QtGui.QPen(QtGui.QColor("#3c3f46"))
         self._grid_pen.setStyle(QtCore.Qt.PenStyle.DotLine)
         self._curve_pen = QtGui.QPen(QtGui.QColor("#1a73e8"))
         self._curve_pen.setWidth(2)
         self._handle_brush = QtGui.QBrush(QtGui.QColor("#1a73e8"))
         self._handle_pen = QtGui.QPen(QtGui.QColor("#0f4aa3"))
+
+    def apply_theme_colors(self, base: QtGui.QColor, accent: QtGui.QColor) -> None:
+        self._bg_color = QtGui.QColor(base)
+        self._border_color = QtGui.QColor(base).darker(120)
+        grid = QtGui.QColor(base)
+        self._grid_pen = QtGui.QPen(grid.lighter(130) if base.lightness() < 128 else grid.darker(130))
+        self._grid_pen.setStyle(QtCore.Qt.PenStyle.DotLine)
+        self._curve_pen = QtGui.QPen(QtGui.QColor(accent))
+        self._curve_pen.setWidth(2)
+        self._handle_brush = QtGui.QBrush(QtGui.QColor(accent))
+        self._handle_pen = QtGui.QPen(QtGui.QColor(accent).darker(135))
+        self.update()
 
     # Public API
     def set_points(self, points: CurvePoints) -> None:
@@ -67,8 +81,8 @@ class CurveEditor(QtWidgets.QWidget):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
         rect = self.rect().adjusted(8, 8, -8, -8)
-        painter.fillRect(rect, QtGui.QColor("#101218"))
-        painter.setPen(QtGui.QPen(QtGui.QColor("#242832")))
+        painter.fillRect(rect, self._bg_color)
+        painter.setPen(QtGui.QPen(self._border_color))
         painter.drawRect(rect)
         self._draw_grid(painter, rect)
         self._draw_curve(painter, rect)
@@ -193,6 +207,7 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         self._preview_timer: Optional[QtCore.QTimer] = None
         self.result_state: Optional[dict] = None
         self._build_ui()
+        self._apply_theme_visuals()
         self._apply_initial_state()
         self._update_preview()
 
@@ -235,7 +250,7 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         curve_label.setObjectName("caption")
         controls.addWidget(curve_label)
         self.curve_editor = CurveEditor()
-        self.curve_editor.curveChanged.connect(lambda _: self._schedule_preview())
+        self.curve_editor.curveChanged.connect(lambda _: self._update_preview())
         controls.addWidget(self.curve_editor)
 
         curve_hint = QtWidgets.QLabel("Left-click to add/move points, right-click to delete.")
@@ -258,7 +273,6 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         self.preview_label = QtWidgets.QLabel()
         self.preview_label.setMinimumSize(320, 320)
         self.preview_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setStyleSheet("border: 1px solid #28313f; background: #0b0c10;")
         preview_col.addWidget(self.preview_label)
         self.preview_status = QtWidgets.QLabel("Enable palette to preview changes.")
         self.preview_status.setObjectName("hint")
@@ -273,6 +287,33 @@ class IntensityPaletteDialog(QtWidgets.QDialog):
         preview_col.addWidget(dialog_buttons)
 
         layout.addLayout(preview_col, 1)
+
+    def _apply_theme_visuals(self) -> None:
+        palette = self.palette()
+        text_color = palette.color(QtGui.QPalette.ColorRole.WindowText)
+        theme_name = getattr(self.main_window, "theme", "light")
+
+        if theme_name == "dark":
+            panel_bg = QtGui.QColor("#2b3240")
+            border = QtGui.QColor("#4d576a")
+            hint_color = "#dfe6f5"
+        else:
+            panel_bg = QtGui.QColor("#e9edf3")
+            border = QtGui.QColor("#c8cfda")
+            hint_color = "#1f2937"
+
+        accent = QtGui.QColor(getattr(self.main_window, "accent_color", "#1a73e8"))
+        self.curve_editor.apply_theme_colors(panel_bg, accent)
+
+        self.enable_checkbox.setStyleSheet(
+            "QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #8a93a0; border-radius: 3px; }"
+            "QCheckBox::indicator:checked { background-color: #22c55e; border: 1px solid #15803d; }"
+        )
+
+        self.preview_label.setStyleSheet(
+            f"border: 1px solid {border.name()}; background: {panel_bg.name()}; color: {text_color.name()};"
+        )
+        self.preview_status.setStyleSheet(f"color: {hint_color};")
 
     # Helpers
     def _make_slider(self, minimum: int, maximum: int, value: int):
