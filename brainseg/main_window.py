@@ -91,7 +91,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.intensity_enabled = False
 		self.canvas_orig = ImageCanvas("Original")
 		self.canvas_mask = ImageCanvas("Segmented Mask", overlay_title=True)
-		self.canvas_high = ImageCanvas("Highlighted Region", overlay_title=True)
+		self.canvas_high = ImageCanvas("Highlighted Region")
 		# View background colors (None means default automatic)
 		self.default_view_bg_color = "#2f2f2f"
 		self.view_bg_original = self.default_view_bg_color
@@ -455,7 +455,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 	def _update_mask_measurements(self, mask: Optional[np.ndarray]):
 		if mask is None:
 			self.canvas_mask.set_overlay_lines([])
-			self.canvas_high.set_overlay_lines([])
 			return
 		if mask.ndim == 3:
 			mask_gray = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
@@ -480,7 +479,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			f"Coverage: {coverage:.2f}%",
 		]
 		self.canvas_mask.set_overlay_lines(lines)
-		self.canvas_high.set_overlay_lines(lines)
 
 	def _sync_intensity_summary(self):
 		if self.settings_window is None:
