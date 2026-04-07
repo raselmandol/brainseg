@@ -91,7 +91,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.intensity_enabled = False
 		self.canvas_orig = ImageCanvas("Original")
 		self.canvas_mask = ImageCanvas("Segmented Mask", overlay_title=True)
-		self.canvas_high = ImageCanvas("Highlighted Region")
+		self.canvas_high = ImageCanvas("Highlighted Region", overlay_title=True)
 		# View background colors (None means default automatic)
 		self.default_view_bg_color = "#2f2f2f"
 		self.view_bg_original = self.default_view_bg_color
@@ -455,16 +455,14 @@ class SegmentationApp(QtWidgets.QMainWindow):
 	def _update_mask_measurements(self, mask: Optional[np.ndarray]):
 		if mask is None:
 			self.canvas_mask.set_overlay_lines([])
+			self.canvas_high.set_overlay_lines([])
 			return
 		if mask.ndim == 3:
 			mask_gray = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 		else:
 			mask_gray = mask
 		mask_bin = (mask_gray > 0).astype(np.uint8)
-		if not np.any(mask_bin):
-			self.canvas_mask.set_overlay_lines(["No segments"])
-			return
-		num_labels, _, stats, centroids = cv2.connectedComponentsWithStats(mask_bin, connectivity=8)
+		num_labels, _, stats, _ = cv2.connectedComponentsWithStats(mask_bin, connectivity=8)
 		total_area = int(np.count_nonzero(mask_bin))
 		height, width = mask_bin.shape
 		coverage = (total_area / (height * width) * 100.0) if height and width else 0.0
@@ -473,23 +471,16 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			area_px = int(stats[label_idx, cv2.CC_STAT_AREA])
 			if area_px <= 0:
 				continue
-			regions.append({
-				"area": area_px,
-				"w": int(stats[label_idx, cv2.CC_STAT_WIDTH]),
-				"h": int(stats[label_idx, cv2.CC_STAT_HEIGHT]),
-				"cx": float(centroids[label_idx][0]),
-				"cy": float(centroids[label_idx][1]),
-			})
-		regions.sort(key=lambda r: r["area"], reverse=True)
+			regions.append(area_px)
+		largest_lesion = max(regions) if regions else 0
 		lines = [
-			f"Regions: {len(regions)} | Coverage: {coverage:.1f}%",
-			f"Pixels: {total_area:,}",
+			f"Lesion count: {len(regions)}",
+			f"Total area: {total_area:,} px",
+			f"Largest lesion: {largest_lesion:,} px",
+			f"Coverage: {coverage:.2f}%",
 		]
-		for idx, region in enumerate(regions[:3]):
-			lines.append(
-				f"#{idx + 1}: {region['area']:,} px @ ({int(round(region['cx']))}, {int(round(region['cy']))}) | {region['w']}x{region['h']}"
-			)
 		self.canvas_mask.set_overlay_lines(lines)
+		self.canvas_high.set_overlay_lines(lines)
 
 	def _sync_intensity_summary(self):
 		if self.settings_window is None:
