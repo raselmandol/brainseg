@@ -7,7 +7,7 @@ import numpy as np
 from typing import Optional
 from .model import get_model, run_inference_on_image, MODEL_PATH # torch needed to be installed before importing pyqt6
 from .canvas import ImageCanvas
-from .image_utils import pil_or_cv_to_rgb_np, numpy_to_qpixmap, load_nifti_rgb_np, load_mask_np
+from .image_utils import pil_or_cv_to_rgb_np, numpy_to_qpixmap, load_nifti_rgb_np, load_mask_np, get_nifti_spacing
 from PyQt6 import QtCore, QtGui, QtWidgets
 from .worker import InferenceWorker
 from .help_window import HelpWindow
@@ -76,6 +76,10 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.current_path = None
 		self.current_nifti_slice_index = None
 		self.current_nifti_total_slices = None
+		self.current_spacing_xy = None
+		self.current_spacing_z = None
+		self._previous_segmentation_metrics = None
+		self._latest_confidence_summary = None
 		self.ground_truth_mask = None
 		self.ground_truth_path = None
 		# Brightness adjustment state (-100..100)
@@ -452,16 +456,18 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		if persist:
 			self._save_user_preferences()
 
-	def _update_mask_measurements(self, mask: Optional[np.ndarray]):
+	def _update_mask_measurements(self, mask: Optional[np.ndarray], confidence_summary: Optional[dict] = None):
 		if mask is None:
 			self.canvas_mask.set_overlay_lines([])
+			self._latest_confidence_summary = None
 			return
+		self._latest_confidence_summary = confidence_summary or self._latest_confidence_summary
 		if mask.ndim == 3:
 			mask_gray = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
 		else:
 			mask_gray = mask
 		mask_bin = (mask_gray > 0).astype(np.uint8)
-		num_labels, _, stats, _ = cv2.connectedComponentsWithStats(mask_bin, connectivity=8)
+		num_labels, _, stats, centroids = cv2.connectedComponentsWithStats(mask_bin, connectivity=8)
 		total_area = int(np.count_nonzero(mask_bin))
 		height, width = mask_bin.shape
 		coverage = (total_area / (height * width) * 100.0) if height and width else 0.0
@@ -470,15 +476,69 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			area_px = int(stats[label_idx, cv2.CC_STAT_AREA])
 			if area_px <= 0:
 				continue
-			regions.append(area_px)
-		largest_lesion = max(regions) if regions else 0
+			regions.append((label_idx, area_px))
+		largest_lesion = 0
+		largest_idx = None
+		for label_idx, area_px in regions:
+			if area_px > largest_lesion:
+				largest_lesion = area_px
+				largest_idx = label_idx
+
+		bbox_w = 0
+		bbox_h = 0
+		centroid_x = 0
+		centroid_y = 0
+		if largest_idx is not None:
+			bbox_w = int(stats[largest_idx, cv2.CC_STAT_WIDTH])
+			bbox_h = int(stats[largest_idx, cv2.CC_STAT_HEIGHT])
+			centroid_x = int(round(float(centroids[largest_idx][0])))
+			centroid_y = int(round(float(centroids[largest_idx][1])))
+
+		spacing_xy = self.current_spacing_xy
+		total_area_mm2 = None
+		largest_area_mm2 = None
+		bbox_mm = None
+		if spacing_xy is not None:
+			sx, sy = spacing_xy
+			if sx > 0 and sy > 0:
+				total_area_mm2 = float(total_area) * sx * sy
+				largest_area_mm2 = float(largest_lesion) * sx * sy
+				bbox_mm = (bbox_w * sx, bbox_h * sy)
+
+		prev = self._previous_segmentation_metrics
+		delta_line = "Longitudinal delta: baseline"
+		if prev:
+			d_count = len(regions) - int(prev.get("lesion_count", 0))
+			d_total = total_area - int(prev.get("total_area", 0))
+			d_largest = largest_lesion - int(prev.get("largest_lesion", 0))
+			sign_count = "+" if d_count >= 0 else ""
+			sign_total = "+" if d_total >= 0 else ""
+			sign_largest = "+" if d_largest >= 0 else ""
+			delta_line = (
+				f"Longitudinal delta: count {sign_count}{d_count}, "
+				f"total {sign_total}{d_total} px, largest {sign_largest}{d_largest} px"
+			)
+
 		lines = [
 			f"Lesion count: {len(regions)}",
-			f"Total area: {total_area:,} px",
-			f"Largest lesion: {largest_lesion:,} px",
+			f"Total area: {total_area:,} px" + (f" ({total_area_mm2:.2f} mm2)" if total_area_mm2 is not None else ""),
+			f"Largest lesion: {largest_lesion:,} px" + (f" ({largest_area_mm2:.2f} mm2)" if largest_area_mm2 is not None else ""),
 			f"Coverage: {coverage:.2f}%",
+			f"Centroid (largest): ({centroid_x}, {centroid_y})",
+			f"Bounding box (largest): {bbox_w}x{bbox_h} px" + (f" ({bbox_mm[0]:.2f}x{bbox_mm[1]:.2f} mm)" if bbox_mm is not None else ""),
 		]
+		if self._latest_confidence_summary:
+			lesion_mean = float(self._latest_confidence_summary.get("lesion_mean", 0.0))
+			global_max = float(self._latest_confidence_summary.get("global_max", 0.0))
+			lines.append(f"Confidence: lesion mean {lesion_mean:.3f}, peak {global_max:.3f}")
+		lines.append(delta_line)
 		self.canvas_mask.set_overlay_lines(lines)
+
+		self._previous_segmentation_metrics = {
+			"lesion_count": len(regions),
+			"total_area": total_area,
+			"largest_lesion": largest_lesion,
+		}
 
 	def _sync_intensity_summary(self):
 		if self.settings_window is None:
@@ -877,12 +937,23 @@ QStatusBar {{
 			total_slices = None
 			if fname.lower().endswith(".nii") or fname.lower().endswith(".nii.gz"):
 				img_rgb, used_slice, total_slices = load_nifti_rgb_np(fname)
+				spacing_info = get_nifti_spacing(fname)
+				if spacing_info is not None:
+					self.current_spacing_xy = (spacing_info[0], spacing_info[1])
+					self.current_spacing_z = spacing_info[2]
+				else:
+					self.current_spacing_xy = None
+					self.current_spacing_z = None
 				self.current_nifti_slice_index = used_slice
 				self.current_nifti_total_slices = total_slices
 			else:
 				img_rgb = pil_or_cv_to_rgb_np(fname)
+				self.current_spacing_xy = None
+				self.current_spacing_z = None
 				self.current_nifti_slice_index = None
 				self.current_nifti_total_slices = None
+			self._previous_segmentation_metrics = None
+			self._latest_confidence_summary = None
 			self.base_image = img_rgb
 			adjusted = self._get_adjusted_image()
 			if self.apply_wl_to_model and self.intensity_enabled:
@@ -929,7 +1000,7 @@ QStatusBar {{
 		mem_before = process.memory_info().rss / (1024 * 1024)
 		t0 = time.perf_counter()
 		try:
-			mask_up, highlighted = run_inference_on_image(self.current_image)
+			mask_up, highlighted, confidence_summary = run_inference_on_image(self.current_image)
 			t1 = time.perf_counter()
 		except Exception as exc:
 			# Ensure progress bar returns to normal and display the error details.
@@ -958,12 +1029,13 @@ QStatusBar {{
 		statistics_tracker.record_segmentation(latency, memory_peak, accuracy=dice_accuracy)
 		self.current_mask = mask_up
 		self.current_highlight = highlighted
+		self._latest_confidence_summary = confidence_summary
 		if self.current_mask.ndim == 2:
 			mask_rgb = np.stack([self.current_mask]*3, axis=-1)
 		else:
 			mask_rgb = self.current_mask
 		self.canvas_mask.set_image_np(mask_rgb)
-		self._update_mask_measurements(self.current_mask)
+		self._update_mask_measurements(self.current_mask, confidence_summary=confidence_summary)
 		self.canvas_high.set_image_np(self.current_highlight)
 		# marking progress complete
 		if hasattr(self, 'segmentation_progress'):
@@ -981,17 +1053,22 @@ QStatusBar {{
 		self.status_label.setText(text)
 		QtWidgets.QApplication.processEvents()
 	def _on_inference_finished(self, result):
-		mask_up, highlighted = result
+		if len(result) >= 3:
+			mask_up, highlighted, confidence_summary = result
+		else:
+			mask_up, highlighted = result
+			confidence_summary = None
 		if mask_up is None or highlighted is None:
 			return
 		self.current_mask = mask_up
 		self.current_highlight = highlighted
+		self._latest_confidence_summary = confidence_summary
 		if self.current_mask.ndim == 2:
 			mask_rgb = np.stack([self.current_mask]*3, axis=-1)
 		else:
 			mask_rgb = self.current_mask
 		self.canvas_mask.set_image_np(mask_rgb)
-		self._update_mask_measurements(self.current_mask)
+		self._update_mask_measurements(self.current_mask, confidence_summary=confidence_summary)
 		self.canvas_high.set_image_np(self.current_highlight)
 		# marking progress complete for worker-based inference
 		if hasattr(self, 'segmentation_progress'):
