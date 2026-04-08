@@ -101,7 +101,19 @@ def run_inference_on_image(img_rgb: np.ndarray):
 	pred_np = pred.squeeze().cpu().numpy()
 	if pred_np.ndim == 3:
 		pred_np = pred_np[0]
-	pred_bin = (pred_np > 0.5).astype(np.uint8)
+	pred_prob = pred_np.astype(np.float32)
+	pred_bin = (pred_prob > 0.5).astype(np.uint8)
 	mask_up = postprocess_mask(pred_bin, orig_shape)
+	pred_prob_up = cv2.resize(pred_prob, (orig_shape[1], orig_shape[0]), interpolation=cv2.INTER_LINEAR)
+	mask_bool = mask_up > 0
+	if np.any(mask_bool):
+		lesion_mean = float(np.mean(pred_prob_up[mask_bool]))
+	else:
+		lesion_mean = 0.0
+	confidence_summary = {
+		"lesion_mean": lesion_mean,
+		"global_mean": float(np.mean(pred_prob_up)),
+		"global_max": float(np.max(pred_prob_up)),
+	}
 	highlighted = compute_highlight(img_rgb, mask_up)
-	return mask_up, highlighted
+	return mask_up, highlighted, confidence_summary
