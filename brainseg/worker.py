@@ -15,8 +15,8 @@ class InferenceWorker(QtCore.QRunnable):
 	def run(self):
 		try:
 			self.signals.progress.emit("Running segmentation...")
-			mask_up, highlighted = run_inference_on_image(self.img_rgb)
-			self.signals.finished.emit((mask_up, highlighted))
+			mask_up, highlighted, confidence_summary = run_inference_on_image(self.img_rgb)
+			self.signals.finished.emit((mask_up, highlighted, confidence_summary))
 		except Exception as e:
 			self.signals.progress.emit(f"Error: {e}")
-			self.signals.finished.emit((None, None))
+			self.signals.finished.emit((None, None, None))
