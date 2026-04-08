@@ -64,6 +64,26 @@ def load_nifti_rgb_np(path: str, preferred_slice: int | None = None) -> tuple[np
 	return rgb, slice_idx, total_slices
 
 
+def get_nifti_spacing(path: str) -> tuple[float, float, float | None] | None:
+	if not _is_nifti_path(path):
+		return None
+	try:
+		import nibabel as nib
+	except Exception:
+		return None
+	try:
+		header = nib.load(path).header
+		zooms = header.get_zooms()
+		sx = float(zooms[0]) if len(zooms) > 0 else 0.0
+		sy = float(zooms[1]) if len(zooms) > 1 else 0.0
+		sz = float(zooms[2]) if len(zooms) > 2 else None
+		if sx <= 0 or sy <= 0:
+			return None
+		return sx, sy, sz
+	except Exception:
+		return None
+
+
 def load_mask_np(path: str, preferred_slice: int | None = None) -> tuple[np.ndarray, int | None, int | None]:
 	if _is_nifti_path(path):
 		slice_2d, slice_idx, total_slices = load_nifti_slice(path, preferred_slice=preferred_slice)
