@@ -123,6 +123,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.setCentralWidget(center)
 		self._build_left_dock()
 		self._build_menubar()
+		self._build_toolbar()
 		# self._build_footer()
 		self.set_theme(self.theme, persist=False)
 		self.set_accent(self.accent_name, persist=False)
@@ -696,38 +697,6 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		act_settings.setShortcut("Ctrl+Alt+C")
 		act_settings.triggered.connect(self._show_settings)
 		settings_menu.addAction(act_settings)
-
-		# Quick actions on the top menu bar (in-place replacement for the second toolbar row)
-		menubar.addSeparator()
-		quick_open = QtGui.QAction("Open", self)
-		quick_open.triggered.connect(self.action_open_image)
-		menubar.addAction(quick_open)
-
-		quick_run = QtGui.QAction("Run", self)
-		quick_run.triggered.connect(self.action_run_segmentation)
-		menubar.addAction(quick_run)
-
-		quick_fit = QtGui.QAction("Fit", self)
-		quick_fit.triggered.connect(self.fit_all)
-		menubar.addAction(quick_fit)
-
-		quick_1x = QtGui.QAction("1:1", self)
-		quick_1x.triggered.connect(self.one_to_one_all)
-		menubar.addAction(quick_1x)
-
-		quick_save_mask = QtGui.QAction("Save Mask", self)
-		quick_save_mask.triggered.connect(self.action_save_mask)
-		menubar.addAction(quick_save_mask)
-
-		quick_save_high = QtGui.QAction("Save Highlight", self)
-		quick_save_high.triggered.connect(self.action_save_highlight)
-		menubar.addAction(quick_save_high)
-
-		theme_icon = self._get_theme_icon()
-		self.theme_action = QtGui.QAction(theme_icon, "Switch Theme", self)
-		self.theme_action.setToolTip("Switch between day/night mode")
-		self.theme_action.triggered.connect(self._toggle_theme)
-		menubar.addAction(self.theme_action)
 	def _build_toolbar(self):
 		tb = QtWidgets.QToolBar("Main")
 		tb.setIconSize(QtCore.QSize(24, 24))
