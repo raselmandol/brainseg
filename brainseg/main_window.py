@@ -12,6 +12,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from .worker import InferenceWorker
 from .help_window import HelpWindow
 from .settings_window import SettingsWindow
+from .system_info_window import SystemInfoWindow
 from .intensity_palette import IntensityPaletteDialog, CurveEditor
 from .theme import LIGHT_THEME, DARK_THEME
 from .statistics_tracker import statistics_tracker
@@ -36,6 +37,14 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.theme_style = 1  # 1 or 2, for icon style
 		self.statistics_window = None
 		self.settings_window = None
+		self.environment_report_panel = None
+		self.environment_report_container = None
+		self.environment_report_resize_handle = None
+		self._environment_panel_anim = None
+		self._environment_last_width = None
+		self._environment_resize_dragging = False
+		self._environment_resize_start_pos = None
+		self._environment_resize_start_width = None
 		self.accent_name = "Azure"
 		self.accent_color = ACCENT_COLORS[self.accent_name]
 		self.theme_color = None
@@ -697,6 +706,12 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		act_settings.setShortcut("Ctrl+Alt+C")
 		act_settings.triggered.connect(self._show_settings)
 		settings_menu.addAction(act_settings)
+
+		env_menu = menubar.addMenu("&Environment Report")
+		self.act_env_report = QtGui.QAction("Toggle Environment Report", self)
+		self.act_env_report.setCheckable(True)
+		self.act_env_report.triggered.connect(self._toggle_environment_report)
+		env_menu.addAction(self.act_env_report)
 	def _build_toolbar(self):
 		tb = QtWidgets.QToolBar("Main")
 		tb.setIconSize(QtCore.QSize(24, 24))
@@ -774,6 +789,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.theme_action.setIcon(self._get_theme_icon())
 		# self._update_footer_label_style()
 		self._apply_accent_palette()
+		self._apply_environment_panel_theme()
 		if self.settings_window is not None:
 			self.settings_window.update_theme_display(theme_name)
 			self.settings_window.apply_accent(self.accent_color, self.theme)
@@ -787,6 +803,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.accent_name = accent_name
 		self.accent_color = ACCENT_COLORS[accent_name]
 		self._apply_accent_palette()
+		self._apply_environment_panel_theme()
 		if self.settings_window is not None:
 			self.settings_window.update_accent_display(accent_name)
 		if persist:
@@ -801,6 +818,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			self.theme_color = None
 		self._apply_theme_stylesheet()
 		self._apply_accent_palette()
+		self._apply_environment_panel_theme()
 		if self.settings_window is not None:
 			self.settings_window.update_theme_color_display(self.theme_color)
 		if persist:
@@ -1138,6 +1156,176 @@ QStatusBar {{
 		self.settings_window.show()
 		self.settings_window.raise_()
 		self.settings_window.activateWindow()
+
+	def _ensure_environment_report_overlay(self):
+		if self.environment_report_container is not None:
+			return
+
+		parent = self.centralWidget()
+		if parent is None:
+			return
+
+		container = QtWidgets.QFrame(parent)
+		container.setObjectName("EnvironmentReportOverlay")
+		container.hide()
+
+		layout = QtWidgets.QHBoxLayout(container)
+		layout.setContentsMargins(0, 0, 0, 0)
+		layout.setSpacing(0)
+
+		handle = QtWidgets.QFrame(container)
+		handle.setObjectName("EnvironmentResizeHandle")
+		handle.setFixedWidth(8)
+		handle.setCursor(QtCore.Qt.CursorShape.SizeHorCursor)
+		handle.setStyleSheet("background: rgba(0, 0, 0, 0.05);")
+		handle.installEventFilter(self)
+
+		panel = SystemInfoWindow(container)
+		panel.closeRequested.connect(self._hide_environment_report)
+
+		layout.addWidget(handle)
+		layout.addWidget(panel, 1)
+
+		shadow = QtWidgets.QGraphicsDropShadowEffect(container)
+		shadow.setBlurRadius(24)
+		shadow.setColor(QtGui.QColor(0, 0, 0, 90))
+		shadow.setOffset(-4, 0)
+		container.setGraphicsEffect(shadow)
+
+		self.environment_report_container = container
+		self.environment_report_resize_handle = handle
+		self.environment_report_panel = panel
+
+		if self._environment_last_width is None:
+			self._environment_last_width = max(320, parent.width() // 3)
+
+		self._apply_environment_panel_theme()
+		self._reposition_environment_overlay(self._environment_last_width)
+
+	def _toggle_environment_report(self, checked=False):
+		self._ensure_environment_report_overlay()
+		if self.environment_report_container is None:
+			return
+		if self.environment_report_container.isVisible():
+			self._hide_environment_report()
+		else:
+			self._show_environment_report()
+
+	def _show_environment_report(self):
+		self._ensure_environment_report_overlay()
+		if self.environment_report_container is None:
+			return
+		self.environment_report_panel.refresh_information()
+		self._apply_environment_panel_theme()
+
+		parent = self.centralWidget()
+		target = self._environment_last_width or max(320, parent.width() // 3)
+		target = self._clamp_environment_width(target)
+
+		start = QtCore.QRect(parent.width(), 0, target, parent.height())
+		end = QtCore.QRect(parent.width() - target, 0, target, parent.height())
+
+		self.environment_report_container.setGeometry(start)
+		self.environment_report_container.show()
+		self.environment_report_container.raise_()
+		self._animate_environment_overlay(start, end, hide_when_done=False)
+
+		if hasattr(self, 'act_env_report'):
+			self.act_env_report.blockSignals(True)
+			self.act_env_report.setChecked(True)
+			self.act_env_report.blockSignals(False)
+
+	def _hide_environment_report(self):
+		self._ensure_environment_report_overlay()
+		if self.environment_report_container is None or not self.environment_report_container.isVisible():
+			if hasattr(self, 'act_env_report'):
+				self.act_env_report.blockSignals(True)
+				self.act_env_report.setChecked(False)
+				self.act_env_report.blockSignals(False)
+			return
+
+		geom = self.environment_report_container.geometry()
+		self._environment_last_width = geom.width()
+		parent = self.centralWidget()
+		end = QtCore.QRect(parent.width(), 0, geom.width(), parent.height())
+		self._animate_environment_overlay(geom, end, hide_when_done=True)
+
+		if hasattr(self, 'act_env_report'):
+			self.act_env_report.blockSignals(True)
+			self.act_env_report.setChecked(False)
+			self.act_env_report.blockSignals(False)
+
+	def _animate_environment_overlay(self, start_rect, end_rect, hide_when_done=False):
+		if self.environment_report_container is None:
+			return
+		if self._environment_panel_anim is not None:
+			self._environment_panel_anim.stop()
+
+		anim = QtCore.QPropertyAnimation(self.environment_report_container, b"geometry", self)
+		anim.setDuration(220)
+		anim.setStartValue(start_rect)
+		anim.setEndValue(end_rect)
+		anim.setEasingCurve(QtCore.QEasingCurve.Type.InOutCubic)
+
+		if hide_when_done:
+			def _finish_hide():
+				if self.environment_report_container is not None:
+					self.environment_report_container.hide()
+			anim.finished.connect(_finish_hide)
+
+		self._environment_panel_anim = anim
+		anim.start()
+
+	def _clamp_environment_width(self, width):
+		parent = self.centralWidget()
+		if parent is None:
+			return int(width)
+		min_w = 300
+		max_w = max(min_w, parent.width() - 40)
+		return max(min_w, min(int(width), max_w))
+
+	def _reposition_environment_overlay(self, width=None):
+		if self.environment_report_container is None:
+			return
+		parent = self.centralWidget()
+		if parent is None:
+			return
+		target = self._clamp_environment_width(width if width is not None else (self._environment_last_width or parent.width() // 3))
+		self._environment_last_width = target
+		x = parent.width() - target
+		self.environment_report_container.setGeometry(x, 0, target, parent.height())
+
+	def _apply_environment_panel_theme(self):
+		if self.environment_report_panel is None:
+			return
+		if hasattr(self.environment_report_panel, 'apply_theme_palette'):
+			self.environment_report_panel.apply_theme_palette(self.theme, self.accent_color, self.theme_color)
+
+	def eventFilter(self, obj, event):
+		if obj is self.environment_report_resize_handle and self.environment_report_container is not None:
+			if event.type() == QtCore.QEvent.Type.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
+				self._environment_resize_dragging = True
+				self._environment_resize_start_pos = event.globalPosition().toPoint()
+				self._environment_resize_start_width = self.environment_report_container.width()
+				return True
+			if event.type() == QtCore.QEvent.Type.MouseMove and self._environment_resize_dragging:
+				current = event.globalPosition().toPoint()
+				delta = current.x() - self._environment_resize_start_pos.x()
+				new_width = self._clamp_environment_width(self._environment_resize_start_width - delta)
+				self._reposition_environment_overlay(new_width)
+				return True
+			if event.type() == QtCore.QEvent.Type.MouseButtonRelease and self._environment_resize_dragging:
+				self._environment_resize_dragging = False
+				self._environment_last_width = self.environment_report_container.width()
+				return True
+		return super().eventFilter(obj, event)
+
+	def resizeEvent(self, event):
+		super().resizeEvent(event)
+		if self.environment_report_container is None:
+			return
+		if self.environment_report_container.isVisible():
+			self._reposition_environment_overlay()
 
 
 def main():
