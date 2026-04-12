@@ -4,7 +4,7 @@ LIGHT_THEME = """
 QMainWindow, QWidget {
     background: #f0f1ec;
     color: #2c3e50;
-    font-family: 'Segoe UI', Helvetica, Arial;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
     font-size: 14px;
 }
 QDockWidget {
@@ -49,7 +49,7 @@ DARK_THEME = """
 QMainWindow, QWidget {
     background: #23272e;
     color: #e0e0e0;
-    font-family: 'Segoe UI', Helvetica, Arial;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
     font-size: 14px;
 }
 QDockWidget {
