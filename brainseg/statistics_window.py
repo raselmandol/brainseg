@@ -156,7 +156,7 @@ class StatisticsWindow(QtWidgets.QDialog):
             'legend.frameon': False,
             'figure.facecolor': 'white',
             'axes.facecolor': 'white',
-            'font.family': 'Segoe UI'
+            'font.family': ['DejaVu Sans', 'Arial', 'Helvetica', 'sans-serif']
         })
 
         graph_types = ['latency', 'memory']
