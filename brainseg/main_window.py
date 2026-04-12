@@ -707,11 +707,9 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		act_settings.triggered.connect(self._show_settings)
 		settings_menu.addAction(act_settings)
 
-		env_menu = menubar.addMenu("&Environment Report")
-		self.act_env_report = QtGui.QAction("Toggle Environment Report", self)
-		self.act_env_report.setCheckable(True)
+		self.act_env_report = QtGui.QAction("Environment Report", self)
 		self.act_env_report.triggered.connect(self._toggle_environment_report)
-		env_menu.addAction(self.act_env_report)
+		menubar.addAction(self.act_env_report)
 	def _build_toolbar(self):
 		tb = QtWidgets.QToolBar("Main")
 		tb.setIconSize(QtCore.QSize(24, 24))
@@ -1230,18 +1228,9 @@ QStatusBar {{
 		self.environment_report_container.raise_()
 		self._animate_environment_overlay(start, end, hide_when_done=False)
 
-		if hasattr(self, 'act_env_report'):
-			self.act_env_report.blockSignals(True)
-			self.act_env_report.setChecked(True)
-			self.act_env_report.blockSignals(False)
-
 	def _hide_environment_report(self):
 		self._ensure_environment_report_overlay()
 		if self.environment_report_container is None or not self.environment_report_container.isVisible():
-			if hasattr(self, 'act_env_report'):
-				self.act_env_report.blockSignals(True)
-				self.act_env_report.setChecked(False)
-				self.act_env_report.blockSignals(False)
 			return
 
 		geom = self.environment_report_container.geometry()
@@ -1249,11 +1238,6 @@ QStatusBar {{
 		parent = self.centralWidget()
 		end = QtCore.QRect(parent.width(), 0, geom.width(), parent.height())
 		self._animate_environment_overlay(geom, end, hide_when_done=True)
-
-		if hasattr(self, 'act_env_report'):
-			self.act_env_report.blockSignals(True)
-			self.act_env_report.setChecked(False)
-			self.act_env_report.blockSignals(False)
 
 	def _animate_environment_overlay(self, start_rect, end_rect, hide_when_done=False):
 		if self.environment_report_container is None:
