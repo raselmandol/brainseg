@@ -75,7 +75,7 @@ class StatisticsWindow(QtWidgets.QDialog):
             lbl_name = QtWidgets.QLabel(name + ":")
             lbl_name.setStyleSheet("font-weight: 500;")
             lbl_val = QtWidgets.QLabel(value)
-            lbl_val.setStyleSheet("font-family: Consolas, 'Courier New', monospace; font-size: 13px;")
+            lbl_val.setStyleSheet("font-family: 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Monaco, Consolas, 'Courier New', monospace; font-size: 13px;")
             grid.addRow(lbl_name, lbl_val)
         layout.addWidget(metrics_box)
 
@@ -94,7 +94,7 @@ class StatisticsWindow(QtWidgets.QDialog):
             agg_form.addRow("Jaccard", QtWidgets.QLabel(fmt_stat_block(agg.get('jaccard'))))
             agg_form.addRow("Hausdorff (px)", QtWidgets.QLabel(fmt_stat_block(agg.get('hausdorff'), 'px')))
             count_label = QtWidgets.QLabel(str(agg.get('count', 0)))
-            count_label.setStyleSheet("font-family: Consolas, 'Courier New', monospace;")
+            count_label.setStyleSheet("font-family: 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;")
             agg_form.addRow("Evaluated Runs", count_label)
             q_layout.addLayout(agg_form)
 
@@ -156,7 +156,7 @@ class StatisticsWindow(QtWidgets.QDialog):
             'legend.frameon': False,
             'figure.facecolor': 'white',
             'axes.facecolor': 'white',
-            'font.family': ['DejaVu Sans', 'Arial', 'Helvetica', 'sans-serif']
+            'font.family': ['Ubuntu', 'Cantarell', 'Noto Sans', 'DejaVu Sans', 'Liberation Sans', 'Arial', 'Helvetica', 'sans-serif']
         })
 
         graph_types = ['latency', 'memory']
@@ -234,6 +234,6 @@ class StatisticsWindow(QtWidgets.QDialog):
         else:
             comp_text = "Comparison: N/A (no candidate model metrics set or no accuracy data)"
         comp_label = QtWidgets.QLabel(comp_text)
-        comp_label.setStyleSheet("font-size: 13px; font-family: Consolas, 'Courier New', monospace;")
+        comp_label.setStyleSheet("font-size: 13px; font-family: 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;")
         comp_layout.addWidget(comp_label)
         layout.addWidget(comp_box)
