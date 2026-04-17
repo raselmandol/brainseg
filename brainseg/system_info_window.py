@@ -2,6 +2,8 @@ import platform
 import shutil
 import subprocess
 import sys
+import os
+import urllib.request
 from importlib.metadata import PackageNotFoundError, version
 
 import psutil
@@ -19,6 +21,54 @@ REQUIRED_PACKAGES = [
     "PyQt6",
     "nibabel",
 ]
+
+MODEL_FILENAME = "brain_abnormality_segmentation.pth"
+MODEL_DOWNLOAD_URL = "https://github.com/raselmandol/brainseg/releases/download/v1.6.1/brain_abnormality_segmentation.pth"
+
+
+class ModelDownloadThread(QtCore.QThread):
+    progressChanged = QtCore.pyqtSignal(int, str)
+    completed = QtCore.pyqtSignal(str)
+    failed = QtCore.pyqtSignal(str)
+
+    def __init__(self, url: str, destination: str, parent=None):
+        super().__init__(parent)
+        self.url = url
+        self.destination = destination
+
+    def run(self):
+        try:
+            os.makedirs(os.path.dirname(self.destination), exist_ok=True)
+            req = urllib.request.Request(self.url, headers={"User-Agent": "BrainSeg/1.6.1"})
+            with urllib.request.urlopen(req, timeout=60) as response, open(self.destination, "wb") as f:
+                total = response.getheader("Content-Length")
+                total_bytes = int(total) if total and total.isdigit() else 0
+                downloaded = 0
+                chunk_size = 1024 * 256
+
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+
+                    if total_bytes > 0:
+                        pct = int((downloaded * 100) / total_bytes)
+                        self.progressChanged.emit(min(pct, 100), f"Downloading... {pct}%")
+                    else:
+                        mb = downloaded / (1024 * 1024)
+                        self.progressChanged.emit(-1, f"Downloading... {mb:.1f} MB")
+
+            self.progressChanged.emit(100, "Download complete")
+            self.completed.emit(self.destination)
+        except Exception as exc:
+            try:
+                if os.path.exists(self.destination):
+                    os.remove(self.destination)
+            except Exception:
+                pass
+            self.failed.emit(str(exc))
 
 
 class SystemInfoWindow(QtWidgets.QWidget):
@@ -66,8 +116,10 @@ class SystemInfoWindow(QtWidgets.QWidget):
         self._build_overview_tab()
         self._build_gpu_tab()
         self._build_packages_tab()
+        self._build_model_tab()
 
         self._report_cache = ""
+        self._download_thread = None
 
         actions = QtWidgets.QHBoxLayout()
         actions.addStretch(1)
@@ -100,6 +152,7 @@ class SystemInfoWindow(QtWidgets.QWidget):
         self._fill_overview(system_info, python_info, pkg_info)
         self._fill_gpu(gpu_info)
         self._fill_packages(pkg_info)
+        self._refresh_model_status()
         self._update_health(pkg_info)
         self._report_cache = self._build_report_text(system_info, python_info, gpu_info, pkg_info)
 
@@ -164,6 +217,66 @@ class SystemInfoWindow(QtWidgets.QWidget):
 
         self.tabs.addTab(page, "Packages")
 
+    def _build_model_tab(self):
+        page = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        self.model_summary = QtWidgets.QLabel("Checks required model file availability and selected path")
+        self.model_summary.setObjectName("PackagesSummary")
+        layout.addWidget(self.model_summary)
+
+        info_group = QtWidgets.QGroupBox("Model File")
+        form = QtWidgets.QFormLayout(info_group)
+        form.setLabelAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignTop)
+
+        self.model_expected_path = QtWidgets.QLabel("-")
+        self.model_expected_path.setWordWrap(True)
+        self.model_expected_path.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        form.addRow("Expected location", self.model_expected_path)
+
+        self.model_selected_path = QtWidgets.QLabel("-")
+        self.model_selected_path.setWordWrap(True)
+        self.model_selected_path.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        form.addRow("Current model path", self.model_selected_path)
+
+        self.model_status_label = QtWidgets.QLabel("Checking...")
+        self.model_status_label.setObjectName("StatusChip")
+        form.addRow("Status", self.model_status_label)
+
+        layout.addWidget(info_group)
+
+        action_row = QtWidgets.QHBoxLayout()
+        self.model_refresh_btn = QtWidgets.QPushButton("Refresh")
+        self.model_refresh_btn.clicked.connect(self._refresh_model_status)
+        action_row.addWidget(self.model_refresh_btn)
+
+        self.model_browse_btn = QtWidgets.QPushButton("Browse...")
+        self.model_browse_btn.clicked.connect(self._browse_model_file)
+        action_row.addWidget(self.model_browse_btn)
+
+        self.model_download_btn = QtWidgets.QPushButton("Download")
+        self.model_download_btn.clicked.connect(self._download_model_file)
+        action_row.addWidget(self.model_download_btn)
+        action_row.addStretch(1)
+        layout.addLayout(action_row)
+
+        self.model_progress = QtWidgets.QProgressBar()
+        self.model_progress.setRange(0, 100)
+        self.model_progress.setValue(0)
+        self.model_progress.setTextVisible(True)
+        self.model_progress.hide()
+        layout.addWidget(self.model_progress)
+
+        self.model_progress_text = QtWidgets.QLabel("")
+        self.model_progress_text.setObjectName("PackagesSummary")
+        self.model_progress_text.hide()
+        layout.addWidget(self.model_progress_text)
+
+        layout.addStretch(1)
+        self.tabs.addTab(page, "Model File")
+
     def _create_kv_table(self):
         table = QtWidgets.QTableWidget(0, 2)
         table.setHorizontalHeaderLabels(["Item", "Value"])
@@ -220,18 +333,132 @@ class SystemInfoWindow(QtWidgets.QWidget):
             table.setItem(i, 0, QtWidgets.QTableWidgetItem(str(key)))
             table.setItem(i, 1, QtWidgets.QTableWidgetItem(str(value)))
 
+    def _default_model_directory(self):
+        home = os.path.expanduser("~")
+        if sys.platform.startswith("win"):
+            base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or os.path.join(home, "AppData", "Local")
+            return os.path.join(base, "BrainSeg", "models")
+        if sys.platform == "darwin":
+            return os.path.join(home, "Library", "Caches", "brainseg", "models")
+        xdg_cache = os.environ.get("XDG_CACHE_HOME") or os.path.join(home, ".cache")
+        return os.path.join(xdg_cache, "brainseg", "models")
+
+    def _expected_model_path(self):
+        return os.path.join(self._default_model_directory(), MODEL_FILENAME)
+
+    def _get_current_model_path(self):
+        try:
+            from . import model
+            return getattr(model, "MODEL_PATH", "")
+        except Exception:
+            return ""
+
+    def _refresh_model_status(self):
+        expected = self._expected_model_path()
+        current = self._get_current_model_path()
+        exists_expected = os.path.exists(expected)
+        exists_current = bool(current) and os.path.exists(current)
+
+        self.model_expected_path.setText(expected)
+        self.model_selected_path.setText(current or "(not selected)")
+
+        if exists_expected:
+            self.model_status_label.setText("Found in default location")
+            self._set_chip_colors(self.model_status_label, "#ecfdf3", "#027a48")
+        elif exists_current:
+            self.model_status_label.setText("Using selected path")
+            self._set_chip_colors(self.model_status_label, "#eff8ff", "#175cd3")
+        else:
+            self.model_status_label.setText("Not found")
+            self._set_chip_colors(self.model_status_label, "#fff4ed", "#b42318")
+
+        self.model_download_btn.setEnabled(not exists_expected)
+
+    def _browse_model_file(self):
+        start_dir = self._default_model_directory()
+        if not os.path.isdir(start_dir):
+            start_dir = os.path.expanduser("~")
+        fname, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select Model File",
+            start_dir,
+            "Model Files (*.pth)",
+        )
+        if not fname:
+            return
+        try:
+            from .model import set_model_path
+            set_model_path(fname)
+            self.model_progress_text.setText(f"Selected model: {fname}")
+            self.model_progress_text.show()
+            self._refresh_model_status()
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self, "Model Selection Error", str(exc))
+
+    def _download_model_file(self):
+        dest = self._expected_model_path()
+        self.model_download_btn.setEnabled(False)
+        self.model_browse_btn.setEnabled(False)
+        self.model_refresh_btn.setEnabled(False)
+        self.model_progress.show()
+        self.model_progress.setRange(0, 100)
+        self.model_progress.setValue(0)
+        self.model_progress_text.setText("Starting download...")
+        self.model_progress_text.show()
+
+        self._download_thread = ModelDownloadThread(MODEL_DOWNLOAD_URL, dest, self)
+        self._download_thread.progressChanged.connect(self._on_model_download_progress)
+        self._download_thread.completed.connect(self._on_model_download_complete)
+        self._download_thread.failed.connect(self._on_model_download_failed)
+        self._download_thread.start()
+
+    def _on_model_download_progress(self, pct, message):
+        if pct < 0:
+            self.model_progress.setRange(0, 0)
+        else:
+            if self.model_progress.maximum() == 0:
+                self.model_progress.setRange(0, 100)
+            self.model_progress.setValue(pct)
+        self.model_progress_text.setText(message)
+
+    def _on_model_download_complete(self, path):
+        self.model_progress.setRange(0, 100)
+        self.model_progress.setValue(100)
+        self.model_progress_text.setText(f"Downloaded to: {path}")
+        try:
+            from .model import set_model_path
+            set_model_path(path)
+        except Exception:
+            pass
+        self.model_download_btn.setEnabled(True)
+        self.model_browse_btn.setEnabled(True)
+        self.model_refresh_btn.setEnabled(True)
+        self._refresh_model_status()
+
+    def _on_model_download_failed(self, error_message):
+        self.model_progress.hide()
+        self.model_progress_text.setText(f"Download failed: {error_message}")
+        self.model_progress_text.show()
+        self.model_download_btn.setEnabled(True)
+        self.model_browse_btn.setEnabled(True)
+        self.model_refresh_btn.setEnabled(True)
+        QtWidgets.QMessageBox.warning(self, "Download Failed", error_message)
+
     def _update_health(self, package_info):
         missing_count = len(package_info["missing"])
         timestamp = QtCore.QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
         if missing_count == 0:
             self.health_chip.setText(f"Status: Healthy | {timestamp}")
-            self._set_health_chip_colors("#ecfdf3", "#027a48")
+            self._set_chip_colors(self.health_chip, "#ecfdf3", "#027a48")
         else:
             self.health_chip.setText(f"Status: Attention ({missing_count} missing) | {timestamp}")
-            self._set_health_chip_colors("#fff4ed", "#b42318")
+            self._set_chip_colors(self.health_chip, "#fff4ed", "#b42318")
 
     def _set_health_chip_colors(self, bg, fg):
-        self.health_chip.setStyleSheet(
+        self._set_chip_colors(self.health_chip, bg, fg)
+
+    def _set_chip_colors(self, label, bg, fg):
+        label.setStyleSheet(
             "padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;"
             f"background: {bg}; color: {fg};"
         )
