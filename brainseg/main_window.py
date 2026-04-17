@@ -26,6 +26,7 @@ ACCENT_COLORS = {
 	"Amber": "#f4b400",
 	"Rose": "#ff4d6d",
 }
+DEFAULT_MODEL_FILENAME = "brain_abnormality_segmentation.pth"
 
 
 class SegmentationApp(QtWidgets.QMainWindow):
@@ -405,6 +406,30 @@ class SegmentationApp(QtWidgets.QMainWindow):
 				f"Failed to load the selected model file:\n\n{exc}\n\nTraceback:\n{tb}")
 			self.status_label.setText("Model load failed. See dialog for details.")
 
+	def _default_model_directory(self):
+		home = os.path.expanduser("~")
+		if sys.platform.startswith("win"):
+			base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or os.path.join(home, "AppData", "Local")
+			return os.path.join(base, "BrainSeg", "models")
+		if sys.platform == "darwin":
+			return os.path.join(home, "Library", "Caches", "brainseg", "models")
+		xdg_cache = os.environ.get("XDG_CACHE_HOME") or os.path.join(home, ".cache")
+		return os.path.join(xdg_cache, "brainseg", "models")
+
+	def _default_model_path(self):
+		return os.path.join(self._default_model_directory(), DEFAULT_MODEL_FILENAME)
+
+	def action_reset_default_model(self):
+		from .model import set_model_path
+		default_path = self._default_model_path()
+		if os.path.exists(default_path):
+			set_model_path(default_path)
+			self.status_label.setText(f"Model reset to default: {default_path}")
+		else:
+			self.status_label.setText(
+				"Default model is not found in expected location. Please go to Environment Report to download/manage models."
+			)
+
 
 	def set_intensity_params(self, center: int, width: int, gamma: float, colormap: str, apply_to_model: bool, curve_points=None, enabled=True):
 		self.wl_center = int(center)
@@ -728,6 +753,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			return a
 		action("Open", self.action_open_image, "Ctrl+Alt+O", "Open image")
 		action("Run", self.action_run_segmentation, "Ctrl+Alt+R", "Run segmentation")
+		action("Reset Model", self.action_reset_default_model, None, "Reset to default model if available")
 		tb.addSeparator()
 		action("Fit", self.fit_all, "Ctrl+Alt+F", "Fit all views")
 		action("1:1", self.one_to_one_all, "Ctrl+Alt+1", "Reset zoom to 1:1")
