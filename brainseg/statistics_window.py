@@ -141,14 +141,15 @@ class StatisticsWindow(QtWidgets.QDialog):
 
         # Apply a professional matplotlib style
         try:
-            plt.style.use('seaborn-v0_8-whitegrid')
+            plt.style.use('seaborn-v0_8-white')
         except Exception:
             try:
-                plt.style.use('seaborn-whitegrid')
+                plt.style.use('seaborn-white')
             except Exception:
                 pass
         plt.rcParams.update({
             'axes.edgecolor': '#cccccc',
+            'axes.grid': False,
             'axes.labelsize': 10,
             'axes.titlesize': 12,
             'xtick.labelsize': 9,
@@ -175,6 +176,7 @@ class StatisticsWindow(QtWidgets.QDialog):
 
         for idx, graph_type in enumerate(graph_types):
             ax = axs[idx]
+            ax.grid(False)
             if graph_type == 'latency':
                 ax.plot(metrics['latencies'], label='Latency (s)', color='#1976d2', linewidth=1.8)
                 ax.set_title('Latency per Run')
