@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import sys
 import os
+import json
 import urllib.request
 from importlib.metadata import PackageNotFoundError, version
 
@@ -24,6 +25,11 @@ REQUIRED_PACKAGES = [
 
 MODEL_FILENAME = "brain_abnormality_segmentation.pth"
 MODEL_DOWNLOAD_URL = "https://github.com/raselmandol/brainseg/releases/download/v1.6.1/brain_abnormality_segmentation.pth"
+RELEASES_API_URL = "https://api.github.com/repos/raselmandol/brainseg/releases"
+MODEL_EXTENSIONS = (
+    ".pth", ".pt", ".tflite", ".tf", ".onnx", ".h5", ".keras",
+    ".ckpt", ".pb", ".safetensors", ".bin", ".zip",
+)
 
 
 class ModelDownloadThread(QtCore.QThread):
@@ -68,6 +74,43 @@ class ModelDownloadThread(QtCore.QThread):
                     os.remove(self.destination)
             except Exception:
                 pass
+            self.failed.emit(str(exc))
+
+
+class ReleaseScanThread(QtCore.QThread):
+    completed = QtCore.pyqtSignal(list)
+    failed = QtCore.pyqtSignal(str)
+
+    def __init__(self, api_url: str, extensions: tuple[str, ...], parent=None):
+        super().__init__(parent)
+        self.api_url = api_url
+        self.extensions = tuple(ext.lower() for ext in extensions)
+
+    def run(self):
+        try:
+            req = urllib.request.Request(self.api_url, headers={"User-Agent": "BrainSeg/1.6.1"})
+            with urllib.request.urlopen(req, timeout=60) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+
+            assets = []
+            for release in payload if isinstance(payload, list) else []:
+                tag = release.get("tag_name") or release.get("name") or "untagged"
+                release_name = release.get("name") or tag
+                for asset in release.get("assets", []) or []:
+                    name = asset.get("name", "")
+                    lower = name.lower()
+                    if not any(lower.endswith(ext) for ext in self.extensions):
+                        continue
+                    assets.append({
+                        "tag": tag,
+                        "release_name": release_name,
+                        "asset_name": name,
+                        "download_url": asset.get("browser_download_url", ""),
+                        "size": int(asset.get("size") or 0),
+                    })
+
+            self.completed.emit(assets)
+        except Exception as exc:
             self.failed.emit(str(exc))
 
 
@@ -120,6 +163,9 @@ class SystemInfoWindow(QtWidgets.QWidget):
 
         self._report_cache = ""
         self._download_thread = None
+        self._release_scan_thread = None
+        self._release_download_thread = None
+        self._release_assets = []
 
         actions = QtWidgets.QHBoxLayout()
         actions.addStretch(1)
@@ -274,6 +320,52 @@ class SystemInfoWindow(QtWidgets.QWidget):
         self.model_progress_text.hide()
         layout.addWidget(self.model_progress_text)
 
+        releases_group = QtWidgets.QGroupBox("Release Models")
+        releases_layout = QtWidgets.QVBoxLayout(releases_group)
+        releases_layout.setSpacing(8)
+
+        self.releases_status_label = QtWidgets.QLabel("Click Check Releases to find downloadable model assets.")
+        self.releases_status_label.setObjectName("PackagesSummary")
+        self.releases_status_label.setWordWrap(True)
+        releases_layout.addWidget(self.releases_status_label)
+
+        releases_actions = QtWidgets.QHBoxLayout()
+        self.check_releases_btn = QtWidgets.QPushButton("Check Releases")
+        self.check_releases_btn.clicked.connect(self._check_releases)
+        releases_actions.addWidget(self.check_releases_btn)
+
+        self.download_release_btn = QtWidgets.QPushButton("Download Selected")
+        self.download_release_btn.setEnabled(False)
+        self.download_release_btn.clicked.connect(self._download_selected_release_asset)
+        releases_actions.addWidget(self.download_release_btn)
+        releases_actions.addStretch(1)
+        releases_layout.addLayout(releases_actions)
+
+        self.releases_progress = QtWidgets.QProgressBar()
+        self.releases_progress.setRange(0, 100)
+        self.releases_progress.setValue(0)
+        self.releases_progress.setTextVisible(True)
+        self.releases_progress.hide()
+        releases_layout.addWidget(self.releases_progress)
+
+        self.releases_table = QtWidgets.QTableWidget(0, 6)
+        self.releases_table.setHorizontalHeaderLabels(["Tag", "Asset", "Type", "Size", "Status", "Location"])
+        self.releases_table.verticalHeader().setVisible(False)
+        self.releases_table.setAlternatingRowColors(True)
+        self.releases_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.releases_table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self.releases_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.releases_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.releases_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.releases_table.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.releases_table.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.releases_table.horizontalHeader().setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.releases_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.releases_table.itemSelectionChanged.connect(self._update_release_download_button_state)
+        releases_layout.addWidget(self.releases_table)
+
+        layout.addWidget(releases_group, 1)
+
         layout.addStretch(1)
         self.tabs.addTab(page, "Model File")
 
@@ -373,6 +465,188 @@ class SystemInfoWindow(QtWidgets.QWidget):
             self._set_chip_colors(self.model_status_label, "#fff4ed", "#b42318")
 
         self.model_download_btn.setEnabled(not exists_expected)
+        self._refresh_release_rows_status()
+
+    @staticmethod
+    def _sanitize_tag(tag: str) -> str:
+        if not tag:
+            return "untagged"
+        return "".join("_" if c in "<>:\\|?*\"/" else c for c in str(tag))
+
+    def _release_asset_destination(self, tag: str, asset_name: str) -> str:
+        release_dir = os.path.join(self._default_model_directory(), self._sanitize_tag(tag))
+        return os.path.join(release_dir, asset_name)
+
+    @staticmethod
+    def _format_bytes(size: int) -> str:
+        units = ["B", "KB", "MB", "GB"]
+        value = float(size)
+        idx = 0
+        while value >= 1024.0 and idx < len(units) - 1:
+            value /= 1024.0
+            idx += 1
+        return f"{value:.1f} {units[idx]}"
+
+    def _asset_type(self, name: str) -> str:
+        lower = name.lower()
+        for ext in MODEL_EXTENSIONS:
+            if lower.endswith(ext):
+                return ext.lstrip(".").upper()
+        return "MODEL"
+
+    def _check_releases(self):
+        self.check_releases_btn.setEnabled(False)
+        self.download_release_btn.setEnabled(False)
+        self.releases_progress.show()
+        self.releases_progress.setRange(0, 0)
+        self.releases_status_label.setText("Checking GitHub releases for model assets...")
+
+        self._release_scan_thread = ReleaseScanThread(RELEASES_API_URL, MODEL_EXTENSIONS, self)
+        self._release_scan_thread.completed.connect(self._on_releases_scanned)
+        self._release_scan_thread.failed.connect(self._on_releases_scan_failed)
+        self._release_scan_thread.start()
+
+    def _on_releases_scanned(self, assets):
+        self._release_assets = assets or []
+        self.releases_progress.setRange(0, 100)
+        self.releases_progress.setValue(100)
+
+        self.releases_table.setRowCount(0)
+        for row, asset in enumerate(self._release_assets):
+            tag = asset.get("tag", "untagged")
+            name = asset.get("asset_name", "")
+            dest = self._release_asset_destination(tag, name)
+            exists = os.path.exists(dest)
+
+            self.releases_table.insertRow(row)
+            tag_item = QtWidgets.QTableWidgetItem(tag)
+            tag_item.setData(QtCore.Qt.ItemDataRole.UserRole, asset)
+            self.releases_table.setItem(row, 0, tag_item)
+            self.releases_table.setItem(row, 1, QtWidgets.QTableWidgetItem(name))
+            self.releases_table.setItem(row, 2, QtWidgets.QTableWidgetItem(self._asset_type(name)))
+            self.releases_table.setItem(row, 3, QtWidgets.QTableWidgetItem(self._format_bytes(int(asset.get("size", 0)))))
+
+            status_item = QtWidgets.QTableWidgetItem("Downloaded" if exists else "Not downloaded")
+            status_item.setForeground(QtGui.QColor("#027a48") if exists else QtGui.QColor("#b42318"))
+            self.releases_table.setItem(row, 4, status_item)
+
+            loc_item = QtWidgets.QTableWidgetItem(dest if exists else "-")
+            self.releases_table.setItem(row, 5, loc_item)
+
+        if self._release_assets:
+            tags = {a.get("tag", "untagged") for a in self._release_assets}
+            self.releases_status_label.setText(
+                f"Found {len(self._release_assets)} model assets across {len(tags)} releases."
+            )
+            self.releases_table.selectRow(0)
+        else:
+            self.releases_status_label.setText(
+                "No machine learning model assets found in GitHub releases (.pth, .tf, .tflite, etc.)."
+            )
+
+        self.check_releases_btn.setEnabled(True)
+        self._update_release_download_button_state()
+
+    def _on_releases_scan_failed(self, message):
+        self.releases_progress.setRange(0, 100)
+        self.releases_progress.setValue(0)
+        self.releases_status_label.setText(f"Release check failed: {message}")
+        self.check_releases_btn.setEnabled(True)
+        self.download_release_btn.setEnabled(False)
+
+    def _refresh_release_rows_status(self):
+        rows = self.releases_table.rowCount() if hasattr(self, "releases_table") else 0
+        for row in range(rows):
+            asset_item = self.releases_table.item(row, 0)
+            if asset_item is None:
+                continue
+            asset = asset_item.data(QtCore.Qt.ItemDataRole.UserRole) or {}
+            dest = self._release_asset_destination(asset.get("tag", "untagged"), asset.get("asset_name", ""))
+            exists = os.path.exists(dest)
+            status_item = self.releases_table.item(row, 4)
+            loc_item = self.releases_table.item(row, 5)
+            if status_item is not None:
+                status_item.setText("Downloaded" if exists else "Not downloaded")
+                status_item.setForeground(QtGui.QColor("#027a48") if exists else QtGui.QColor("#b42318"))
+            if loc_item is not None:
+                loc_item.setText(dest if exists else "-")
+
+    def _update_release_download_button_state(self):
+        if not hasattr(self, "releases_table"):
+            return
+        selected = self.releases_table.selectionModel().selectedRows() if self.releases_table.selectionModel() else []
+        if not selected:
+            self.download_release_btn.setEnabled(False)
+            return
+        row = selected[0].row()
+        asset_item = self.releases_table.item(row, 0)
+        if asset_item is None:
+            self.download_release_btn.setEnabled(False)
+            return
+        asset = asset_item.data(QtCore.Qt.ItemDataRole.UserRole) or {}
+        dest = self._release_asset_destination(asset.get("tag", "untagged"), asset.get("asset_name", ""))
+        self.download_release_btn.setEnabled(not os.path.exists(dest))
+
+    def _download_selected_release_asset(self):
+        selected = self.releases_table.selectionModel().selectedRows() if self.releases_table.selectionModel() else []
+        if not selected:
+            self.releases_status_label.setText("Select a release asset first.")
+            return
+        row = selected[0].row()
+        asset_item = self.releases_table.item(row, 0)
+        asset = asset_item.data(QtCore.Qt.ItemDataRole.UserRole) if asset_item is not None else None
+        if not asset:
+            self.releases_status_label.setText("Invalid release asset selection.")
+            return
+
+        url = asset.get("download_url", "")
+        name = asset.get("asset_name", "")
+        tag = asset.get("tag", "untagged")
+        dest = self._release_asset_destination(tag, name)
+        if not url:
+            self.releases_status_label.setText("Selected asset does not contain a download URL.")
+            return
+        if os.path.exists(dest):
+            self.releases_status_label.setText(f"Already downloaded: {dest}")
+            self._update_release_download_button_state()
+            return
+
+        self.check_releases_btn.setEnabled(False)
+        self.download_release_btn.setEnabled(False)
+        self.releases_progress.show()
+        self.releases_progress.setRange(0, 100)
+        self.releases_progress.setValue(0)
+        self.releases_status_label.setText(f"Downloading {name} from {tag}...")
+
+        self._release_download_thread = ModelDownloadThread(url, dest, self)
+        self._release_download_thread.progressChanged.connect(self._on_release_download_progress)
+        self._release_download_thread.completed.connect(self._on_release_download_complete)
+        self._release_download_thread.failed.connect(self._on_release_download_failed)
+        self._release_download_thread.start()
+
+    def _on_release_download_progress(self, pct, message):
+        if pct < 0:
+            self.releases_progress.setRange(0, 0)
+        else:
+            if self.releases_progress.maximum() == 0:
+                self.releases_progress.setRange(0, 100)
+            self.releases_progress.setValue(pct)
+        self.releases_status_label.setText(message)
+
+    def _on_release_download_complete(self, path):
+        self.releases_progress.setRange(0, 100)
+        self.releases_progress.setValue(100)
+        self.releases_status_label.setText(f"Downloaded: {path}")
+        self.check_releases_btn.setEnabled(True)
+        self._refresh_release_rows_status()
+        self._update_release_download_button_state()
+
+    def _on_release_download_failed(self, message):
+        self.releases_progress.setRange(0, 100)
+        self.releases_progress.setValue(0)
+        self.releases_status_label.setText(f"Download failed: {message}")
+        self.check_releases_btn.setEnabled(True)
+        self._update_release_download_button_state()
 
     def _browse_model_file(self):
         start_dir = self._default_model_directory()
