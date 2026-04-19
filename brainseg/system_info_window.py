@@ -361,6 +361,7 @@ class SystemInfoWindow(QtWidgets.QWidget):
         self.releases_table.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.releases_table.horizontalHeader().setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.releases_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.releases_table.setMinimumHeight(190)
         self.releases_table.itemSelectionChanged.connect(self._update_release_download_button_state)
         releases_layout.addWidget(self.releases_table)
 
