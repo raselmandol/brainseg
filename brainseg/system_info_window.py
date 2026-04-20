@@ -171,14 +171,20 @@ class SystemInfoWindow(QtWidgets.QWidget):
         actions.addStretch(1)
 
         self.refresh_btn = QtWidgets.QPushButton("Refresh")
+        self.refresh_btn.setFixedHeight(28)
+        self.refresh_btn.setMinimumWidth(78)
         self.refresh_btn.clicked.connect(self.refresh_information)
         actions.addWidget(self.refresh_btn)
 
         self.copy_btn = QtWidgets.QPushButton("Copy")
+        self.copy_btn.setFixedHeight(28)
+        self.copy_btn.setMinimumWidth(72)
         self.copy_btn.clicked.connect(self._copy_to_clipboard)
         actions.addWidget(self.copy_btn)
 
         close_btn = QtWidgets.QPushButton("Close")
+        close_btn.setFixedHeight(28)
+        close_btn.setMinimumWidth(76)
         close_btn.clicked.connect(self.closeRequested.emit)
         actions.addWidget(close_btn)
 
@@ -351,23 +357,36 @@ class SystemInfoWindow(QtWidgets.QWidget):
         self.releases_table = QtWidgets.QTableWidget(0, 6)
         self.releases_table.setHorizontalHeaderLabels(["Tag", "Asset", "Type", "Size", "Status", "Location"])
         self.releases_table.verticalHeader().setVisible(False)
+        self.releases_table.verticalHeader().setDefaultSectionSize(26)
+        self.releases_table.verticalHeader().setMinimumSectionSize(22)
         self.releases_table.setAlternatingRowColors(True)
         self.releases_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
         self.releases_table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
         self.releases_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.releases_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.releases_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.releases_table.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.releases_table.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.releases_table.horizontalHeader().setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.releases_table.horizontalHeader().setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeMode.Stretch)
-        self.releases_table.setMinimumHeight(190)
+        self.releases_table.setWordWrap(False)
+        self.releases_table.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.releases_table.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.releases_table.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.releases_table.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        header = self.releases_table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Interactive)
+        self.releases_table.setColumnWidth(0, 82)   # Tag
+        self.releases_table.setColumnWidth(1, 300)  # Asset
+        self.releases_table.setColumnWidth(2, 74)   # Type
+        self.releases_table.setColumnWidth(3, 96)   # Size
+        self.releases_table.setColumnWidth(4, 120)  # Status
+        self.releases_table.setColumnWidth(5, 420)  # Location
+        row_height = self.releases_table.verticalHeader().defaultSectionSize()
+        header_height = self.releases_table.horizontalHeader().height()
+        h_scroll = self.releases_table.horizontalScrollBar().sizeHint().height()
+        frame = int(self.releases_table.frameWidth() * 2)
+        min_height = header_height + (row_height * 4) + h_scroll + frame + 6
+        self.releases_table.setMinimumHeight(min_height)
         self.releases_table.itemSelectionChanged.connect(self._update_release_download_button_state)
         releases_layout.addWidget(self.releases_table)
 
-        layout.addWidget(releases_group, 1)
-
-        layout.addStretch(1)
+        layout.addWidget(releases_group, 2)
         self.tabs.addTab(page, "Model File")
 
     def _create_kv_table(self):
