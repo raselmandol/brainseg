@@ -166,6 +166,8 @@ class SystemInfoWindow(QtWidgets.QWidget):
         self._release_scan_thread = None
         self._release_download_thread = None
         self._release_assets = []
+        self._model_expected_full = ""
+        self._model_selected_full = ""
 
         actions = QtWidgets.QHBoxLayout()
         actions.addStretch(1)
@@ -471,8 +473,9 @@ class SystemInfoWindow(QtWidgets.QWidget):
         exists_expected = os.path.exists(expected)
         exists_current = bool(current) and os.path.exists(current)
 
-        self.model_expected_path.setText(expected)
-        self.model_selected_path.setText(current or "(not selected)")
+        self._model_expected_full = expected
+        self._model_selected_full = current or "(not selected)"
+        self._update_model_path_labels()
 
         if exists_expected:
             self.model_status_label.setText("Found in default location")
@@ -486,6 +489,25 @@ class SystemInfoWindow(QtWidgets.QWidget):
 
         self.model_download_btn.setEnabled(not exists_expected)
         self._refresh_release_rows_status()
+
+    def _update_model_path_labels(self):
+        self._set_elided_label_text(self.model_expected_path, self._model_expected_full)
+        self._set_elided_label_text(self.model_selected_path, self._model_selected_full)
+
+    @staticmethod
+    def _set_elided_label_text(label: QtWidgets.QLabel, text: str):
+        if not text:
+            label.setText("")
+            return
+        metrics = QtGui.QFontMetrics(label.font())
+        available = max(40, label.width() - 6)
+        elided = metrics.elidedText(text, QtCore.Qt.TextElideMode.ElideRight, available)
+        label.setText(elided)
+        label.setToolTip(text)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_model_path_labels()
 
     @staticmethod
     def _sanitize_tag(tag: str) -> str:
