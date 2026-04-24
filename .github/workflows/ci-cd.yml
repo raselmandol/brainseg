@@ -3,6 +3,7 @@ name: CI/CD
 on:
   release:
     types: [ published ]
+  workflow_dispatch:
 
 jobs:
   smoke:
@@ -35,7 +36,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: (github.event_name == 'release' && github.event.action == 'published') || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
