@@ -2,6 +2,8 @@
 
 A compact gallery of the latest BrainSeg UI states. Each capture highlights a specific workflow so you can quickly preview the desktop experience.
 
+![Environment Panel View](screenshots/brainseg165_1.png)
+
 ## Animated overview
 ![Animated overview showing annotation workflow](screenshots/brainseg151_2.gif)
 Highlights the streamlined three-panel canvas layout and quick annotation cycle.
