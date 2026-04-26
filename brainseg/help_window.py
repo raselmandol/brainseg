@@ -120,6 +120,19 @@ class HelpWindow(QtWidgets.QDialog):
         <h3>Step 5: Save Results</h3>
         <p>Use <b>"Save Mask"</b> (Ctrl+Alt+S) or <b>"Save Highlight"</b> to save the processed images.</p>
         <p>Output files are automatically named: <code>originalname_mask.png</code> and <code>originalname_highlight.png</code></p>
+
+        <h3>Model Management</h3>
+        <ul>
+            <li><b>Download models:</b> Open <b>Environment Report -> Model File</b>, click <b>Check Releases</b>, then select a model asset and press <b>Download Selected</b>.</li>
+            <li><b>Set a model:</b> Use <b>Browse...</b> in the Model File tab or click <b>Reset Model</b> on the top toolbar to use the default cached model.</li>
+            <li><b>Model location:</b> The app stores downloaded models in an OS-specific cache folder (Windows: AppData\Local\BrainSeg\models, macOS: ~/Library/Caches/brainseg/models, Linux: ~/.cache/brainseg/models).</li>
+        </ul>
+
+        <h3>Version & GPU Checks</h3>
+        <ul>
+            <li><b>Version checking:</b> Environment Report shows runtime details and installed package versions so you can confirm which build is running.</li>
+            <li><b>GPU checking:</b> The GPU tab reports CUDA/MPS availability and GPU names when detected.</li>
+        </ul>
         
         <h3>Navigation Tips</h3>
         <ul>
