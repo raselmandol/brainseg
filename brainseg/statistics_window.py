@@ -157,7 +157,10 @@ class StatisticsWindow(QtWidgets.QDialog):
             'legend.frameon': False,
             'figure.facecolor': 'white',
             'axes.facecolor': 'white',
-            'font.family': ['Ubuntu', 'Cantarell', 'Noto Sans', 'DejaVu Sans', 'Liberation Sans', 'Arial', 'Helvetica', 'sans-serif']
+            # Use a generic family plus concrete fallbacks to avoid repeated
+            # findfont warnings on systems missing Linux-oriented fonts.
+            'font.family': 'sans-serif',
+            'font.sans-serif': ['Segoe UI', 'Arial', 'DejaVu Sans', 'Liberation Sans', 'Noto Sans', 'sans-serif']
         })
 
         graph_types = ['latency', 'memory']
