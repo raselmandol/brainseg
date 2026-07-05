@@ -5,11 +5,12 @@ import traceback
 import psutil, time
 import numpy as np
 from typing import Optional
-from .model import get_model, run_inference_on_image, MODEL_PATH # torch needed to be installed before importing pyqt6
+from .model import get_model, run_inference_on_image, compute_highlight, MODEL_PATH, _model_singleton # torch needed to be installed before importing pyqt6
 from .canvas import ImageCanvas
 from .image_utils import pil_or_cv_to_rgb_np, numpy_to_qpixmap, load_nifti_rgb_np, load_mask_np, get_nifti_spacing
 from PyQt6 import QtCore, QtGui, QtWidgets
 from .worker import InferenceWorker
+from .onnx_backend import load_onnx_segmenter
 from .help_window import HelpWindow
 from .settings_window import SettingsWindow
 from .system_info_window import SystemInfoWindow
@@ -50,6 +51,12 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.accent_color = ACCENT_COLORS[self.accent_name]
 		self.theme_color = None
 		self._base_theme_stylesheet = LIGHT_THEME
+		# Inference backend state: "pytorch" or "onnx"
+		self.onnx_segmenter = None
+		self.inference_backend = "pytorch"
+		self._inference_running = False
+		self._inference_threadpool = QtCore.QThreadPool.globalInstance()
+		self._inference_input_snapshot = None
 		# PyInstaller missing icon issue
 		# In PyInstaller, data files are unpacked to sys._MEIPASS
 		self.assets_dir = None
@@ -171,6 +178,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		btn_select_model.clicked.connect(self.action_select_model)
 		btn_run = QtWidgets.QPushButton("Run Segmentation")
 		btn_run.clicked.connect(self.action_run_segmentation)
+		self.btn_run = btn_run
 		btn_save_mask = QtWidgets.QPushButton("Save Mask")
 		btn_save_mask.clicked.connect(self.action_save_mask)
 		btn_save_high = QtWidgets.QPushButton("Save Highlight")
@@ -359,15 +367,20 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			return None
 		return self._apply_intensity_transform(adjusted, params=params)
 
+	def _get_inference_input_image(self) -> Optional[np.ndarray]:
+		"""Return the exact image that should be fed into segmentation."""
+		adjusted = self._get_adjusted_image()
+		if adjusted is None:
+			return None
+		if self.apply_wl_to_model and self.intensity_enabled:
+			return self._apply_intensity_transform(adjusted)
+		return adjusted
+
 	def _on_brightness_changed(self, value: int):
 		self.brightness_value = int(value)
 		if hasattr(self, 'brightness_label'):
 			self.brightness_label.setText(str(self.brightness_value))
-		adjusted = self._get_adjusted_image()
-		if self.apply_wl_to_model and self.intensity_enabled:
-			self.current_image = self._apply_intensity_transform(adjusted)
-		else:
-			self.current_image = adjusted
+		self.current_image = self._get_inference_input_image()
 		self._refresh_original_display()
 		if self.settings_window is not None:
 			self.settings_window.update_brightness_display(self.brightness_value)
@@ -376,21 +389,25 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.contrast_value = int(value)
 		if hasattr(self, 'contrast_label'):
 			self.contrast_label.setText(str(self.contrast_value))
-		adjusted = self._get_adjusted_image()
-		if self.apply_wl_to_model and self.intensity_enabled:
-			self.current_image = self._apply_intensity_transform(adjusted)
-		else:
-			self.current_image = adjusted
+		self.current_image = self._get_inference_input_image()
 		self._refresh_original_display()
 		if self.settings_window is not None:
 			self.settings_window.update_contrast_display(self.contrast_value)
 	def action_select_model(self):
 		from .model import load_model, set_model_path, _model_singleton
-		fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select Model File", os.getcwd(), "Model Files (*.pth)")
+		fname, _ = QtWidgets.QFileDialog.getOpenFileName(
+			self, "Select Model File", os.getcwd(),
+			"Model Files (*.pth *.onnx);;PyTorch (*.pth);;ONNX (*.onnx)",
+		)
 		if not fname:
 			self.status_label.setText("Model selection cancelled.")
 			return
-		# Try to validate the selected .pth immediately and show clear errors instead of crashing. (-->error handling)
+		is_onnx = fname.lower().endswith(".onnx")
+		if is_onnx:
+			self._load_onnx_model(fname)
+			return
+		# PyTorch path: validate the selected .pth immediately and show clear
+		# errors instead of crashing.
 		try:
 			self.status_label.setText("Validating model file...")
 			QtWidgets.QApplication.processEvents()
@@ -398,6 +415,9 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			# Store into singleton so subsequent calls reuse the loaded model
 			_model_singleton["model"] = model
 			set_model_path(fname)
+			self.inference_backend = "pytorch"
+			# Drop any previously loaded ONNX session to free memory.
+			self.onnx_segmenter = None
 			self.status_label.setText(f"Model selected: {os.path.basename(fname)}")
 		except Exception as exc:
 			# Showing a dialog with the detailed error message
@@ -440,11 +460,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 		self.intensity_enabled = bool(enabled)
 		if curve_points is not None:
 			self.curve_points = self._sanitize_curve_points(curve_points)
-		adjusted = self._get_adjusted_image()
-		if self.apply_wl_to_model and self.intensity_enabled:
-			self.current_image = self._apply_intensity_transform(adjusted)
-		else:
-			self.current_image = adjusted
+		self.current_image = self._get_inference_input_image()
 		self._refresh_original_display()
 		self._sync_intensity_summary()
 
@@ -601,39 +617,34 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			enabled=state.get("enabled", self.intensity_enabled),
 		)
 
-	def _download_medsam_models(self):
-		"""Download Medical SAM ONNX encoder+decoder from Hugging Face and load them."""
+	def _load_onnx_model(self, path: str):
+		"""Load an ONNX Runtime model and switch the inference backend to ONNX."""
 		try:
-			from huggingface_hub import hf_hub_download
+			self.status_label.setText("Loading ONNX model...")
+			QtWidgets.QApplication.processEvents()
+			self.onnx_segmenter = load_onnx_segmenter(path)
+			self.inference_backend = "onnx"
+			# Reset any cached PyTorch model so the backends do not both reside in memory.
+			_model_singleton["model"] = None
+			self.status_label.setText(
+				f"ONNX model loaded: {os.path.basename(path)} "
+				f"(providers: {', '.join(self.onnx_segmenter.providers)})"
+			)
 		except Exception as exc:
-			QtWidgets.QMessageBox.critical(self, "Dependency Missing", f"huggingface_hub is required to download models: {exc}")
-			return
-		cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'brainseg', 'models')
-		os.makedirs(cache_dir, exist_ok=True)
-		try:
-			enc_path = hf_hub_download(MEDSAM_REPO_ID, MEDSAM_ENCODER_FILENAME, cache_dir=cache_dir)
-			dec_path = hf_hub_download(MEDSAM_REPO_ID, MEDSAM_DECODER_FILENAME, cache_dir=cache_dir)
-		except Exception as exc:
-			QtWidgets.QMessageBox.critical(self, "Download Failed", f"Failed to download Medical SAM models: {exc}")
-			return
-		# Try to create sessions and register them
-		try:
-			enc_sess = self._create_onnx_session(enc_path)
-			dec_sess = self._create_onnx_session(dec_path)
-		except Exception as exc:
-			QtWidgets.QMessageBox.critical(self, "Load Failed", f"Downloaded models could not be loaded: {exc}")
-			return
-		self.onnx_encoder_session = enc_sess
-		self.onnx_encoder_input = enc_sess.get_inputs()[0].name if enc_sess.get_inputs() else None
-		self.onnx_encoder_outputs = [o.name for o in enc_sess.get_outputs()]
-		self.onnx_encoder_path = enc_path
-		self.onnx_decoder_session = dec_sess
-		self.onnx_decoder_input_names = [i.name for i in dec_sess.get_inputs()]
-		self.onnx_decoder_output_names = [o.name for o in dec_sess.get_outputs()]
-		self.onnx_decoder_path = dec_path
-		self.chk_onnx.setChecked(True)
-		self._update_onnx_status_labels()
-		QtWidgets.QMessageBox.information(self, "Medical SAM", f"Medical SAM encoder+decoder downloaded and loaded.")
+			self.onnx_segmenter = None
+			self.inference_backend = "pytorch"
+			tb = traceback.format_exc()
+			QtWidgets.QMessageBox.critical(
+				self, "ONNX Load Error",
+				f"Failed to load the ONNX model file:\n\n{exc}\n\nTraceback:\n{tb}",
+			)
+			self.status_label.setText("ONNX model load failed. See dialog for details.")
+
+	def _get_inference_fn(self):
+		"""Return the callable used to run segmentation for the active backend."""
+		if self.inference_backend == "onnx" and self.onnx_segmenter is not None:
+			return self.onnx_segmenter.run_inference
+		return run_inference_on_image
 	def action_load_ground_truth(self):
 		file_filter = "Masks (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.npy *.nii *.nii.gz)"
 		start_dir = os.path.dirname(self.ground_truth_path) if self.ground_truth_path else (
@@ -752,7 +763,7 @@ class SegmentationApp(QtWidgets.QMainWindow):
 			tb.addAction(a)
 			return a
 		action("Open", self.action_open_image, "Ctrl+Alt+O", "Open image")
-		action("Run", self.action_run_segmentation, "Ctrl+Alt+R", "Run segmentation")
+		self.act_run = action("Run", self.action_run_segmentation, "Ctrl+Alt+R", "Run segmentation")
 		action("Reset Model", self.action_reset_default_model, None, "Reset to default model if available")
 		tb.addSeparator()
 		action("Fit", self.fit_all, "Ctrl+Alt+F", "Fit all views")
@@ -997,13 +1008,10 @@ QStatusBar {{
 			self._previous_segmentation_metrics = None
 			self._latest_confidence_summary = None
 			self.base_image = img_rgb
-			adjusted = self._get_adjusted_image()
-			if self.apply_wl_to_model and self.intensity_enabled:
-				self.current_image = self._apply_intensity_transform(adjusted)
-			else:
-				self.current_image = adjusted
+			self.current_image = self._get_inference_input_image()
 			self.current_mask = None
 			self.current_highlight = None
+			self._inference_input_snapshot = None
 			self.current_path = fname
 			self.ground_truth_mask = None
 			self.ground_truth_path = None
@@ -1028,38 +1036,83 @@ QStatusBar {{
 		except Exception as e:
 			self.status_label.setText(f"Error: {e}")
 	def action_run_segmentation(self):
-		if self.current_image is None:
+		if self.base_image is None:
 			self.status_label.setText("No image loaded.")
+			return
+		if self._inference_running:
+			self.status_label.setText("Segmentation already in progress.")
 			return
 		if not self._ensure_model_ready():
 			return
 
-		process = psutil.Process()
-		# indeterminate progress while running segmentation
+		# Snapshot the image so later brightness/intensity changes do not race
+		# with the background inference.
+		image_snapshot = self._get_inference_input_image()
+		if image_snapshot is None:
+			self.status_label.setText("No image loaded.")
+			return
+		self.current_image = image_snapshot
+		self._inference_input_snapshot = image_snapshot.copy()
+		mem_before = psutil.Process().memory_info().rss / (1024 * 1024)
+		self._inference_mem_before = mem_before
+
+		self._set_running_state(True)
 		if hasattr(self, 'segmentation_progress'):
 			self.segmentation_progress.setRange(0, 0)  # indeterminate
-			QtWidgets.QApplication.processEvents()
-		mem_before = process.memory_info().rss / (1024 * 1024)
-		t0 = time.perf_counter()
-		try:
-			mask_up, highlighted, confidence_summary = run_inference_on_image(self.current_image)
-			t1 = time.perf_counter()
-		except Exception as exc:
-			# Ensure progress bar returns to normal and display the error details.
-			t1 = time.perf_counter()
-			if hasattr(self, 'segmentation_progress'):
-				self.segmentation_progress.setRange(0, 100)
-				self.segmentation_progress.setValue(0)
-			tb = traceback.format_exc()
-			QtWidgets.QMessageBox.critical(self, "Segmentation Error",
-				f"An error occurred while running segmentation:\n\n{exc}\n\nTraceback:\n{tb}")
-			self.status_label.setText("Segmentation failed. See dialog for details.")
+
+		worker = InferenceWorker(image_snapshot, inference_fn=self._get_inference_fn())
+		worker.setAutoDelete(True)
+		worker.signals.progress.connect(self._on_progress)
+		worker.signals.failed.connect(self._on_inference_failed)
+		worker.signals.finished.connect(self._on_inference_finished)
+		self._inference_threadpool.start(worker)
+
+	def _set_running_state(self, running: bool):
+		self._inference_running = running
+		# Disable the dock Run button and the toolbar Run action while busy.
+		for attr in ("btn_run",):
+			btn = getattr(self, attr, None)
+			if btn is not None:
+				btn.setEnabled(not running)
+		if hasattr(self, "act_run"):
+			self.act_run.setEnabled(not running)
+
+	def _on_progress(self, text: str):
+		self.status_label.setText(text)
+
+	def _on_inference_failed(self, message: str, tb: str):
+		# Reset UI state; the finished signal will follow and call _finish_running.
+		self._inference_input_snapshot = None
+		if hasattr(self, 'segmentation_progress'):
+			self.segmentation_progress.setRange(0, 100)
+			self.segmentation_progress.setValue(0)
+		QtWidgets.QMessageBox.critical(
+			self, "Segmentation Error",
+			f"An error occurred while running segmentation:\n\n{message}\n\nTraceback:\n{tb}",
+		)
+		self.status_label.setText("Segmentation failed. See dialog for details.")
+
+	def _on_inference_finished(self, result):
+		self._set_running_state(False)
+		if hasattr(self, 'segmentation_progress'):
+			self.segmentation_progress.setRange(0, 100)
+			self.segmentation_progress.setValue(0)
+
+		if not isinstance(result, dict) or not result.get("ok"):
+			# Error path was already handled by _on_inference_failed.
 			return
-		mem_after = process.memory_info().rss / (1024 * 1024)
-		latency = t1 - t0
+
+		mask_up = result.get("mask")
+		highlighted = result.get("highlight")
+		confidence_summary = result.get("confidence")
+		latency = float(result.get("latency", 0.0))
+
+		mem_after = psutil.Process().memory_info().rss / (1024 * 1024)
+		mem_before = getattr(self, "_inference_mem_before", mem_after)
 		memory_peak = max(mem_before, mem_after)
+
 		quality_record = None
-		if self.ground_truth_mask is not None:
+		if self.ground_truth_mask is not None and mask_up is not None:
 			quality_record = statistics_tracker.record_quality(
 				mask_up,
 				self.ground_truth_mask,
@@ -1069,19 +1122,30 @@ QStatusBar {{
 		if dice_accuracy is not None and np.isnan(dice_accuracy):
 			dice_accuracy = None
 		statistics_tracker.record_segmentation(latency, memory_peak, accuracy=dice_accuracy)
+
 		self.current_mask = mask_up
-		self.current_highlight = highlighted
-		self._latest_confidence_summary = confidence_summary
-		if self.current_mask.ndim == 2:
-			mask_rgb = np.stack([self.current_mask]*3, axis=-1)
+		display_base = self._apply_intensity_transform(self._get_adjusted_image())
+		if display_base is None:
+			display_base = self._inference_input_snapshot
+		if mask_up is not None and display_base is not None:
+			try:
+				self.current_highlight = compute_highlight(display_base, mask_up)
+			except Exception:
+				self.current_highlight = highlighted
 		else:
-			mask_rgb = self.current_mask
-		self.canvas_mask.set_image_np(mask_rgb)
-		self._update_mask_measurements(self.current_mask, confidence_summary=confidence_summary)
-		self.canvas_high.set_image_np(self.current_highlight)
-		# marking progress complete
+			self.current_highlight = highlighted
+		self._latest_confidence_summary = confidence_summary
+		if self.current_mask is not None:
+			if self.current_mask.ndim == 2:
+				mask_rgb = np.stack([self.current_mask] * 3, axis=-1)
+			else:
+				mask_rgb = self.current_mask
+			self.canvas_mask.set_image_np(mask_rgb)
+			self._update_mask_measurements(self.current_mask, confidence_summary=confidence_summary)
+		if self.current_highlight is not None:
+			self.canvas_high.set_image_np(self.current_highlight)
+
 		if hasattr(self, 'segmentation_progress'):
-			self.segmentation_progress.setRange(0, 100)
 			self.segmentation_progress.setValue(100)
 			QtCore.QTimer.singleShot(800, lambda: self.segmentation_progress.setValue(0))
 
@@ -1091,42 +1155,25 @@ QStatusBar {{
 			)
 		else:
 			self.status_label.setText(f"Segmentation done in {latency:.3f}s")
-	def _on_progress(self, text: str):
-		self.status_label.setText(text)
-		QtWidgets.QApplication.processEvents()
-	def _on_inference_finished(self, result):
-		if len(result) >= 3:
-			mask_up, highlighted, confidence_summary = result
-		else:
-			mask_up, highlighted = result
-			confidence_summary = None
-		if mask_up is None or highlighted is None:
-			return
-		self.current_mask = mask_up
-		self.current_highlight = highlighted
-		self._latest_confidence_summary = confidence_summary
-		if self.current_mask.ndim == 2:
-			mask_rgb = np.stack([self.current_mask]*3, axis=-1)
-		else:
-			mask_rgb = self.current_mask
-		self.canvas_mask.set_image_np(mask_rgb)
-		self._update_mask_measurements(self.current_mask, confidence_summary=confidence_summary)
-		self.canvas_high.set_image_np(self.current_highlight)
-		# marking progress complete for worker-based inference
-		if hasattr(self, 'segmentation_progress'):
-			self.segmentation_progress.setRange(0, 100)
-			self.segmentation_progress.setValue(100)
-			QtCore.QTimer.singleShot(800, lambda: self.segmentation_progress.setValue(0))
-		self.status_label.setText("Done.")
+		self._inference_input_snapshot = None
 
 	def _ensure_model_ready(self) -> bool:
+		# ONNX backend: ready if a session is loaded.
+		if self.inference_backend == "onnx" and self.onnx_segmenter is not None:
+			return True
+		# PyTorch backend: avoid blocking the UI by loading the model here.
+		# Ready if already loaded, or if the model file exists (loading will
+		# happen lazily inside the worker thread).
+		from .model import MODEL_PATH as _model_path
+		if _model_singleton.get("model") is not None:
+			return True
 		try:
-			model = get_model()
-			return model is not None
-		except FileNotFoundError:
-			self.status_label.setText("Load a model first.")
-		except Exception as exc:
-			self.status_label.setText(f"Model load failed: {exc}")
+			path = _model_path
+			if path and os.path.exists(path):
+				return True
+		except Exception:
+			pass
+		self.status_label.setText("Load a model first (File or toolbar).")
 		return False
 	def action_save_mask(self):
 		if self.current_mask is None:
