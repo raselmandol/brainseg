@@ -157,8 +157,9 @@ python -m py_compile brainseg\model.py brainseg\main_window.py
 - [ ] Allow background model validation to keep the UI responsive with >1 GB checkpoints.
 - [ ] Add CLI hooks or REST mode for batch inference.
 - [ ] Extend statistics window with export-to-CSV and per-run notes.
-- [ ] ONNX Runtime support
+- [ ] ONNX Runtime support (load `.onnx` models alongside `.pth`)
 - [x] Segmentation list
+- [ ] Asynchronous (non-blocking) segmentation via a worker thread
 - [ ] Fetch models from remote sources
 - [ ] Support semantic and instance segmentation (parallel workflows)
 
